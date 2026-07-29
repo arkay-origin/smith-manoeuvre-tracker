@@ -681,7 +681,13 @@ function setSaveState(t){ $('savestate').textContent = t; }
 $('btnSave').onclick = saveFile;
 $('btnLoad').onclick = loadFile;
 $('btnAutosave').onclick = async ()=>{
-  if(!window.showSaveFilePicker){ alert('Auto-save needs Chrome or Edge (File System Access API). Elsewhere, use Save to download your JSON each session.'); return; }
+  if(!window.showSaveFilePicker){
+    alert('Auto-save needs the File System Access API, which this browser does not expose.\n\n'
+      + '• Chrome / Edge: supported.\n'
+      + '• Brave: blocked by default for privacy. You can enable it at brave://flags — search "File System Access API" — then restart Brave.\n'
+      + '• Firefox / Safari / most mobile browsers: not supported.\n\n'
+      + 'Nothing is lost either way: "Save data file" downloads your JSON, and "Load data file" reads it back. Auto-save only removes the manual step.');
+    return; }
   await saveFile();
   if(fileHandle) alert('Auto-save is on: this tab will write changes to the linked file automatically.');
 };
