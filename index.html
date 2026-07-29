@@ -69,10 +69,15 @@ input,select,textarea{font:inherit;background:var(--input-bg);border:1px solid v
   padding:.45rem .6rem;border-radius:7px;width:100%}
 textarea{resize:vertical;min-height:2.4rem}
 label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.2rem;text-transform:uppercase;letter-spacing:.05em}
-.field{margin-bottom:.75rem}
+/* Fields align their CONTROL to the bottom of the grid row, so a label that
+   wraps to two lines no longer pushes its input out of line with its neighbours. */
+.field{margin-bottom:.75rem;display:flex;flex-direction:column;min-width:0}
+.field > label{margin-bottom:.2rem}
+.field > *:last-child{margin-top:auto}
+.field > label:only-child{margin-top:0}
 .grid{display:grid;gap:.8rem}
 .g2{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
-.g3{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem;margin-bottom:1rem}
 .card.sub{background:var(--panel2)}
 .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
