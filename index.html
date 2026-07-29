@@ -1,0 +1,2208 @@
+<!DOCTYPE html>
+<!--
+  The Conversion Ledger — Smith Manoeuvre Tracker
+  Copyright (C) 2026 arkay-origin
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+  Source: https://github.com/arkay-origin/smith-manoeuvre-tracker
+
+  Educational tool only — not financial, tax, legal, or investment advice.
+-->
+<html lang="en-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smith Manoeuvre Tracker — Canadian Deductible Debt Ledger</title>
+<style>
+/* ============ Design tokens: "The Conversion Ledger" ============ */
+:root{
+  --ink:#0E1116; --panel:#151B23; --panel2:#1B222C; --line:#26303C;
+  --text:#D9E1EA; --muted:#8A99AB; --faint:#5E6C7C;
+  --gold:#E4B658; --gold-dim:#8A6F35; --red:#D96A5F; --red-dim:#7A4038;
+  --green:#5FBF8F; --blue:#6FA8DC; --warn-bg:#2A2116; --warn-text:#CBB78A;
+  --input-bg:#0E1116; --primary-text:#1A1408;
+  --radius:10px; --mono:ui-monospace,'Cascadia Code','SF Mono',Consolas,monospace;
+  --serif:Georgia,'Times New Roman',serif;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  color-scheme:dark;   /* native widgets (date pickers, selects) render for dark UI */
+}
+/* Light theme — same ledger identity (gold + serif), on warm paper */
+[data-theme="light"]{
+  --ink:#F3F0E9; --panel:#FFFFFF; --panel2:#F8F5EE; --line:#DCD5C5;
+  --text:#272B33; --muted:#5C6878; --faint:#8B94A2;
+  --gold:#9C731F; --gold-dim:#C7A75B; --red:#B0453A; --red-dim:#D9A79E;
+  --green:#22754F; --blue:#2B66A3; --warn-bg:#F6ECD4; --warn-text:#6E5A25;
+  --input-bg:#FDFCF9; --primary-text:#FFFDF6;
+  color-scheme:light;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.55}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:.01em}
+h1{font-size:1.5rem} h2{font-size:1.2rem;margin-bottom:.6rem} h3{font-size:1.02rem;margin-bottom:.4rem;color:var(--gold)}
+p{margin-bottom:.6rem}
+a{color:var(--blue)}
+.num,td.num,input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--text);
+  padding:.5rem .9rem;border-radius:8px;transition:border-color .15s,background .15s}
+button:hover{border-color:var(--gold-dim)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+select.needs-pick{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold-dim) inset}
+button.primary{background:var(--gold);border-color:var(--gold);color:var(--primary-text);font-weight:600}
+button.primary:hover{filter:brightness(1.1)}
+button.danger{border-color:var(--red-dim);color:var(--red)}
+button.small{padding:.25rem .55rem;font-size:.82rem;border-radius:6px}
+input,select,textarea{font:inherit;background:var(--input-bg);border:1px solid var(--line);color:var(--text);
+  padding:.45rem .6rem;border-radius:7px;width:100%}
+textarea{resize:vertical;min-height:2.4rem}
+label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.2rem;text-transform:uppercase;letter-spacing:.05em}
+.field{margin-bottom:.75rem}
+.grid{display:grid;gap:.8rem}
+.g2{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem;margin-bottom:1rem}
+.card.sub{background:var(--panel2)}
+.row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+.spread{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem}
+/* Uniform header across all tabs: title left, optional actions right, fixed height */
+.pagehead{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;
+  gap:.5rem .8rem;min-height:3rem;margin-bottom:.35rem}
+.pagehead > h1{margin:0}
+.pagehead .acts{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+hr{border:none;border-top:1px solid var(--line);margin:.9rem 0}
+table{width:100%;border-collapse:collapse;font-size:.86rem}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;
+  padding:.4rem .5rem;border-bottom:1px solid var(--line)}
+td{padding:.4rem .5rem;border-bottom:1px solid var(--line)}
+td.num,th.num{text-align:right}
+tr:hover td{background:rgba(228,182,88,.04)}
+.tag{display:inline-block;font-size:.7rem;padding:.1rem .45rem;border-radius:99px;border:1px solid var(--line);
+  text-transform:uppercase;letter-spacing:.05em}
+.tag.gold{color:var(--gold);border-color:var(--gold-dim)}
+.tag.red{color:var(--red);border-color:var(--red-dim)}
+.tag.green{color:var(--green);border-color:#2E5C46}
+.tag.blue{color:var(--blue);border-color:#31506B}
+.muted{color:var(--muted)} .faint{color:var(--faint);font-size:.82rem}
+.gold{color:var(--gold)} .red{color:var(--red)} .green{color:var(--green)}
+.note-ic{cursor:help;color:var(--faint)}
+.disclaimer{background:var(--warn-bg);border:1px solid var(--gold-dim);border-radius:var(--radius);
+  padding:.7rem .9rem;font-size:.84rem;color:var(--warn-text);margin-bottom:1rem}
+.disclaimer strong{color:var(--gold)}
+.callout{border-left:3px solid var(--blue);padding:.5rem .8rem;background:var(--panel2);border-radius:0 8px 8px 0;
+  font-size:.87rem;margin-bottom:.8rem}
+
+/* ============ Shell ============ */
+#app{display:grid;grid-template-columns:215px 1fr;min-height:100vh}
+#rail{background:var(--panel);border-right:1px solid var(--line);padding:1.1rem .8rem;position:sticky;top:0;height:100vh;overflow-y:auto}
+#rail .brand{font-family:var(--serif);font-size:1.05rem;line-height:1.25;margin-bottom:.2rem}
+#rail .brand b{color:var(--gold)}
+#rail .sub{font-size:.72rem;color:var(--faint);margin-bottom:1.1rem;letter-spacing:.04em}
+.navbtn{display:block;width:100%;text-align:left;background:none;border:none;border-radius:8px;
+  padding:.5rem .7rem;color:var(--muted);margin-bottom:.15rem;font-size:.9rem}
+.navbtn:hover{color:var(--text);background:var(--panel2)}
+.navbtn.active{color:var(--gold);background:var(--panel2);border-radius:0 8px 8px 0;
+  box-shadow:inset 2px 0 0 var(--gold)}
+#main{padding:1.4rem 1.6rem;max-width:1150px;width:100%}
+.view{display:none}.view.active{display:block}
+#filebar{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--line)}
+#filebar button{width:100%;font-size:.82rem;padding:.4rem .6rem}
+#savestate{font-size:.72rem;color:var(--faint);margin-top:.4rem;text-align:center}
+@media(max-width:820px){
+  #app{grid-template-columns:1fr}
+  #rail{position:static;height:auto;display:block;gap:0;align-items:stretch;border-right:none;border-bottom:1px solid var(--line)}
+  #rail .brand,#rail .sub{width:100%}
+  #navtabs{display:grid;grid-template-columns:repeat(4,1fr);gap:.3rem;margin:.2rem 0 .6rem}
+  .navbtn{width:100%;display:flex;align-items:center;justify-content:center;margin:0;text-align:center;
+    min-height:2.6rem;font-size:.82rem;background:var(--panel2);border-radius:8px}
+  .navbtn.active{border-radius:8px;box-shadow:inset 0 0 0 1px var(--gold)}
+  #filebar{border-top:none;padding-top:0;margin-top:0;width:100%}
+  #filebar button{width:auto;flex:1 1 46%}
+  #main{padding:1rem}
+}
+
+/* ============ Signature: the Conversion Ledger bar ============ */
+#convledger{margin-bottom:1.2rem}
+#convbar{height:34px;border-radius:8px;overflow:hidden;display:flex;border:1px solid var(--line);background:var(--panel2)}
+#convbar .seg{height:100%;transition:width .6s ease}
+#convbar .nd{background:linear-gradient(180deg,#B7574D,#8E4038)}
+#convbar .dd{background:linear-gradient(180deg,#F0C56B,#C69838)}
+#convlegend{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-top:.35rem}
+#convpct{font-family:var(--serif);font-size:2.1rem;color:var(--gold);line-height:1}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.8rem;margin-bottom:1rem}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:.75rem .9rem}
+.stat .v{font-family:var(--mono);font-size:1.15rem;font-variant-numeric:tabular-nums}
+.stat .l{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.cycle{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;font-size:.82rem;color:var(--muted);margin:.6rem 0 0}
+.cycle span{border:1px solid var(--line);border-radius:99px;padding:.15rem .6rem;background:var(--panel2)}
+.cycle .arr{border:none;background:none;color:var(--faint);padding:0}
+
+canvas.chart{width:100%;height:300px;background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius)}
+.modewrap{display:inline-flex;border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.modewrap button{border:none;border-radius:0;background:none;padding:.35rem .8rem;font-size:.82rem}
+.modewrap button.on{background:var(--gold);color:var(--primary-text);font-weight:600}
+details{margin-bottom:.7rem;border:1px solid var(--line);border-radius:8px;padding:.55rem .8rem;background:var(--panel2)}
+summary{cursor:pointer;color:var(--gold);font-family:var(--serif)}
+details[open] summary{margin-bottom:.5rem}
+.empty{color:var(--faint);font-size:.85rem;padding:.8rem;text-align:center;border:1px dashed var(--line);border-radius:8px}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--gold-dim);border-radius:var(--radius);
+  padding:1.2rem;max-width:520px;width:92%;margin:auto}
+dialog::backdrop{background:rgba(5,8,12,.75)}
+.scrollx{overflow-x:auto}
+
+/* ============ Print: audit package ============ */
+@media print{
+  body{background:#fff;color:#111}
+  #rail,button,.noprint,dialog{display:none!important}
+  #app{display:block}
+  .card,.stat{border:1px solid #999;background:#fff;break-inside:avoid}
+  .view{display:none}.view.print-target{display:block!important}
+  h1,h2,h3{color:#111}
+  td,th{border-bottom:1px solid #bbb;color:#111}
+  .disclaimer{background:#f4ecd8;color:#5a4a1e;border-color:#b09040}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<!-- ================= RAIL ================= -->
+<nav id="rail">
+  <div class="brand">The <b>Conversion</b><br>Ledger</div>
+  <div class="sub">SMITH MANOEUVRE TRACKER · CANADA</div>
+  <div id="navtabs">
+  <button class="navbtn active" data-view="dash">Dashboard</button>
+  <button class="navbtn" data-view="mortgage">Mortgage</button>
+  <button class="navbtn" data-view="heloc">HELOC</button>
+  <button class="navbtn" data-view="invest">Investments</button>
+  <button class="navbtn" data-view="tax">Tax</button>
+  <button class="navbtn" data-view="sim">Simulator</button>
+  <button class="navbtn" data-view="audit">Audit &amp; Guide</button>
+  </div>
+  <div id="filebar" class="noprint">
+    <button id="btnSave" class="primary">Save data file</button>
+    <button id="btnLoad">Load data file</button>
+    <button id="btnAutosave">Enable auto-save</button>
+    <button id="btnWipe" class="danger">Clear all data</button>
+    <button id="btnTheme">Light mode</button>
+  </div>
+  <div id="savestate">No file linked · data lives in this tab only</div>
+</nav>
+
+<!-- ================= MAIN ================= -->
+<main id="main">
+<div class="disclaimer"><strong>Educational tool only.</strong> Nothing here is financial, tax, legal, or investment advice. The Smith Manoeuvre involves leveraged investing and real risk of loss. Verify everything with a CPA and licensed advisor before acting or filing. All data stays in your browser — nothing is uploaded anywhere.</div>
+
+<!-- ========== DASHBOARD ========== -->
+<section class="view active" id="view-dash">
+  <div class="pagehead"><h1>Dashboard</h1>
+    <div class="acts"><div class="modewrap" title="Light mode: annual summaries only. Full mode: transaction-level tracking.">
+      <button id="modeLight">Light</button><button id="modeFull" class="on">Full</button>
+    </div></div>
+  </div>
+  <p class="faint">Light mode = enter annual totals from your bank statements (the CRA cares about statements, not spreadsheets). Full mode = per-transaction ledger.</p>
+
+  <div id="convledger" class="card">
+    <div class="spread">
+      <div><h2 style="margin-bottom:.1rem">Debt conversion</h2>
+        <span class="faint">non-deductible mortgage → deductible investment loan</span></div>
+      <div id="convpct">0%</div>
+    </div>
+    <div id="convbar" style="margin-top:.7rem">
+      <div class="seg nd" style="width:100%"></div><div class="seg dd" style="width:0%"></div>
+    </div>
+    <div id="convlegend">
+      <span><span class="tag red">Non-deductible</span> <span id="lgnd" class="num">$0</span></span>
+      <span><span class="tag gold">Deductible</span> <span id="lgdd" class="num">$0</span></span>
+    </div>
+    <div class="cycle noprint">
+      <span>Pay mortgage</span><span class="arr">→</span><span>Re-borrow HELOC</span><span class="arr">→</span>
+      <span>Invest</span><span class="arr">→</span><span>Dividends &amp; refund</span><span class="arr">→</span>
+      <span>Prepay</span><span class="arr">↺</span>
+    </div>
+  </div>
+
+  <div class="statgrid" id="dashStats"></div>
+
+  <div class="card" id="lightPanel" style="display:none">
+    <h2>Light mode — annual summary</h2>
+    <p class="faint">Once a year, download 12 months of statements (HELOC interest, SM chequing, SM investment account) and enter the totals. Keep the statements — they're your real audit trail.</p>
+    <div class="grid g3">
+      <div class="field"><label>Tax year</label><input type="number" id="lyYear"></div>
+      <div class="field"><label>Deductible interest paid ($)</label><input type="number" id="lyInterest" step="0.01"></div>
+      <div class="field"><label>HELOC balance (investment) $</label><input type="number" id="lyHeloc" step="0.01"></div>
+      <div class="field"><label>Mortgage balance $</label><input type="number" id="lyMort" step="0.01"></div>
+      <div class="field"><label>Portfolio value $</label><input type="number" id="lyPort" step="0.01"></div>
+      <div class="field"><label>Dividends received $</label><input type="number" id="lyDiv" step="0.01"></div>
+    </div>
+    <div class="field"><label>Note</label><input type="text" id="lyNote" placeholder="e.g. all statements saved to /2026 folder"></div>
+    <button class="primary" id="lyAdd">Add year</button>
+    <div class="scrollx" style="margin-top:.8rem"><table id="lyTable"></table></div>
+  </div>
+
+  <div class="card"><h2>Net position</h2><canvas id="dashChart" class="chart" height="300"></canvas>
+  <p class="faint" style="margin-top:.4rem">Portfolio value vs. total debt (mortgage + investment HELOC), from your ledger history.</p></div>
+</section>
+
+<!-- ========== MORTGAGE ========== -->
+<section class="view" id="view-mortgage">
+  <div class="pagehead"><h1>Mortgage</h1><div class="acts"></div></div>
+  <p class="faint">Canadian fixed mortgages compound semi-annually; variable-rate products often compound monthly or align with the payment cycle, depending on lender. Set yours in the Payment section — check your mortgage documents if unsure.</p>
+
+  <div class="card">
+    <h2>Loan basics</h2>
+    <div class="grid g3">
+      <div class="field"><label>Original principal $</label><input type="number" id="mPrincipal" step="0.01"></div>
+      <div class="field"><label>Annual rate %</label><input type="number" id="mRate" step="0.001"></div>
+      <div class="field"><label>Amortization (years)</label><input type="number" id="mAmort" step="1"></div>
+      <div class="field"><label>Start date</label><input type="date" id="mStart"></div>
+      <div class="field"><label>Starting payment frequency</label>
+        <select id="mFreq">
+          <option value="12">Monthly</option><option value="26">Bi-weekly</option>
+          <option value="26a">Accelerated bi-weekly</option><option value="52">Weekly</option>
+          <option value="52a">Accelerated weekly</option>
+        </select></div>
+      <div class="field"><label>&nbsp;</label><button class="primary" id="mApply" style="width:100%">Apply / recalc</button></div>
+    </div>
+    <div class="statgrid" id="mStats"></div>
+    <div id="mCompare"></div>
+  </div>
+
+  <div class="card">
+    <h2>Payment</h2>
+    <p class="faint" id="mPayHint" style="margin:.2rem 0 .8rem"></p>
+    <div class="grid g3">
+      <div class="field"><label>Interest compounding <span class="red">*</span></label>
+        <select id="mComp">
+          <option value="" disabled selected>Select — check your mortgage documents</option>
+          <option value="2">Semi-annual — fixed-rate standard</option>
+          <option value="12">Monthly — common on variable</option>
+          <option value="match">Matches payment cycle</option>
+          <option value="1">Annual</option>
+          <option value="4">Quarterly</option>
+          <option value="365">Daily</option>
+        </select></div>
+      <div class="field"><label>Payment amount</label>
+        <select id="mPayMode">
+          <option value="auto">Calculated by lender formula</option>
+          <option value="custom">Custom — I pay a set amount</option>
+        </select></div>
+      <div class="field" id="mCustomWrap" style="display:none"><label>My payment (per period) $</label>
+        <input type="number" id="mCustomPay" step="0.01" placeholder="what actually leaves your account"></div>
+    </div>
+    <p class="faint">Compounding and payment amount both feed the schedule. Changing them here re-applies on <b>Apply / recalc</b> above.</p>
+
+    <hr>
+    <h3>Payment amount changes</h3>
+    <p class="faint">Bumped your payment partway through? Record it here. Each entry applies from its date until the next one, and overrides both the calculated payment and the custom amount above.</p>
+    <div class="grid g3">
+      <div class="field"><label>Effective date</label><input type="date" id="pcDate"></div>
+      <div class="field"><label>New payment $</label><input type="number" id="pcAmt" step="0.01"></div>
+      <div class="field"><label>&nbsp;</label><button id="pcAdd" style="width:100%">Add payment change</button></div>
+    </div>
+    <table id="pcTable"></table>
+
+    <hr>
+    <h3>Payment frequency changes</h3>
+    <p class="faint">Switched from monthly to accelerated bi-weekly (or similar) mid-mortgage? Record it here. The schedule re-amortizes from that date at the new frequency, so the history before it stays accurate.</p>
+    <div class="grid g3">
+      <div class="field"><label>Effective date</label><input type="date" id="fcDate"></div>
+      <div class="field"><label>New frequency</label>
+        <select id="fcFreq">
+          <option value="12">Monthly</option><option value="26">Bi-weekly</option>
+          <option value="26a">Accelerated bi-weekly</option><option value="52">Weekly</option>
+          <option value="52a">Accelerated weekly</option>
+        </select></div>
+      <div class="field"><label>&nbsp;</label><button id="fcAdd" style="width:100%">Add frequency change</button></div>
+    </div>
+    <table id="fcTable"></table>
+  </div>
+
+  <div class="card">
+    <div class="spread"><h2>Rate changes &amp; renewals</h2></div>
+    <div class="grid g3">
+      <div class="field"><label>Effective date</label><input type="date" id="rcDate"></div>
+      <div class="field"><label>New rate %</label><input type="number" id="rcRate" step="0.001"></div>
+      <div class="field"><label>Compounding (optional)</label>
+        <select id="rcComp">
+          <option value="">Keep current</option>
+          <option value="2">Semi-annual</option>
+          <option value="12">Monthly</option>
+          <option value="match">Matches payment cycle</option>
+          <option value="1">Annual</option>
+          <option value="4">Quarterly</option>
+          <option value="365">Daily</option>
+        </select></div>
+      <div class="field"><label>&nbsp;</label><button id="rcAdd" style="width:100%">Add rate change</button></div>
+    </div>
+    <p class="faint">Set compounding here if it changes at renewal — e.g. switching from a monthly-compounded variable to a semi-annual fixed.</p>
+    <table id="rcTable"></table>
+  </div>
+  <div class="card">
+    <div class="spread"><h2>Prepayments</h2></div>
+    <div class="grid g3">
+      <div class="field"><label>Date</label><input type="date" id="ppDate"></div>
+      <div class="field"><label>Amount $</label><input type="number" id="ppAmt" step="0.01"></div>
+      <div class="field"><label>Source</label>
+        <select id="ppSrc"><option>Cashflow</option><option>Dividends</option><option>Tax refund</option><option>Sale proceeds</option><option>Other</option></select></div>
+    </div>
+    <div class="field"><label>Note</label><input type="text" id="ppNote" placeholder="why did I do this? (future-you will thank you)"></div>
+    <button class="primary" id="ppAdd">Add prepayment</button>
+    <div class="scrollx" style="margin-top:.8rem"><table id="ppTable"></table></div>
+  </div>
+  <div class="card">
+    <div class="spread"><h2>Amortization schedule</h2>
+      <div class="acts">
+        <div class="modewrap"><button id="schedYearly" class="on">Yearly</button><button id="schedFull">Full</button></div>
+        <button class="small" id="mCsv">Export CSV</button>
+      </div>
+    </div>
+    <div class="scrollx"><table id="mSched"></table></div>
+  </div>
+</section>
+
+<!-- ========== HELOC ========== -->
+<section class="view" id="view-heloc">
+  <div class="pagehead"><h1>HELOC</h1><div class="acts"><button class="primary" id="hAddLine">+ Add credit line</button></div></div>
+  <p class="faint">Multiple lines supported (multi-lender setups). Draws are tagged by purpose so investment principal and capitalized interest never blur together — that split is what keeps your deduction clean.</p>
+  <details><summary>How this tool calculates HELOC interest — read before relying on the numbers</summary>
+    <p><b>Simple daily accrual, actual/365.</b> Interest is accrued daily on the deductible balance at the rate in force, with no internal compounding and no leap-year adjustment. Most Canadian HELOCs accrue daily and charge monthly, so this is close — but it is an <em>estimate</em>.</p>
+    <p><b>Compounding is captured by you, not assumed.</b> If you let interest capitalize, record it as a <span class="tag gold">Capitalized interest</span> draw. The tool then compounds it exactly as it actually happened rather than guessing a frequency. If you don't record those draws, the estimate will run low.</p>
+    <p><b>Principal payments split pro-rata.</b> On a line holding both deductible and non-deductible balances, a payment reduces each in proportion to its share. That reflects the CRA's general position on mixed-use borrowing — you normally cannot direct repayments at the non-deductible portion first. If your situation supports different tracing, the figures here won't match your filing position.</p>
+    <p class="gold">Your lender's statements govern. Reconcile against them before filing.</p>
+  </details>
+  <div id="helocList"></div>
+</section>
+
+<!-- ========== INVESTMENTS ========== -->
+<section class="view" id="view-invest">
+  <div class="pagehead"><h1>Investments</h1>
+    <div class="acts"><button id="csvImport">Import CSV</button><button class="primary" id="txAddBtn">+ Add transaction</button></div>
+  </div>
+  <p class="faint">ACB uses the CRA average-cost method. Distributions with return of capital reduce ACB; reinvested (phantom) distributions increase it. Splits supported, including fractional handling.</p>
+  <div class="card"><div class="spread"><h2>Holdings</h2><span class="faint">book values from ledger</span></div>
+    <div class="scrollx"><table id="holdTable"></table></div></div>
+  <div class="card"><div class="spread"><h2>Transaction ledger</h2>
+      <div class="row"><div class="modewrap"><button id="txvAll" class="on">All</button><button id="txvSym">By symbol</button></div>
+      <button class="small" id="txCsv">Export CSV</button></div></div>
+    <div class="scrollx" id="txWrap"></div></div>
+  <div class="card sub"><h3>Superficial loss warning</h3>
+    <p class="faint">This tool flags sells at a loss with a repurchase of the same symbol within ±30 days, but cannot catch buys in other accounts (spouse, RRSP, TFSA). Those still trigger the rule — check manually.</p>
+    <div id="slWarn"></div></div>
+</section>
+
+<!-- ========== TAX ========== -->
+<section class="view" id="view-tax">
+  <div class="pagehead"><h1>Tax</h1><div class="acts"></div></div>
+  <div class="card">
+    <div class="grid g3">
+      <div class="field"><label>Tax year</label><input type="number" id="taxYear"></div>
+      <div class="field"><label>Marginal tax rate % <span class="red">*</span></label>
+        <input type="number" id="taxMTR" step="0.1" placeholder="your combined fed+prov rate"></div>
+      <div class="field"><label>&nbsp;</label><button class="primary" id="taxCalc" style="width:100%">Calculate year</button></div>
+    </div>
+    <div class="statgrid" id="taxStats"></div>
+    <div class="callout"><b>These are estimates, not statements.</b> Ledger figures use simple daily accrual (actual/365) and split mixed-line payments pro-rata. Reconcile against your lender's annual interest statement before filing — where they differ, the statement wins.</div>
+    <p class="faint">Deductible interest = interest attributable to draws tagged <span class="tag gold">Investment</span> or <span class="tag gold">Capitalized interest</span> on those draws. Interest goes on <b>Line 22100</b> (carrying charges) of your T1. Mixed-use draws are excluded — keep them out of your SM line entirely.</p>
+  </div>
+  <div class="card">
+    <h2>Refund deployment</h2>
+    <p class="faint">Track where each year's refund went — redeploying into prepayment is what accelerates the conversion.</p>
+    <div class="grid g3">
+      <div class="field"><label>Year</label><input type="number" id="rdYear"></div>
+      <div class="field"><label>Refund $</label><input type="number" id="rdAmt" step="0.01"></div>
+      <div class="field"><label>Deployed to</label>
+        <select id="rdTo"><option>Mortgage prepayment</option><option>More investments</option><option>HELOC paydown</option><option>Spent / other</option></select></div>
+      <div class="field" id="rdDateWrap"><label>Deployment date</label><input type="date" id="rdDate"></div>
+      <div class="field" id="rdLinkWrap"><label>Auto-create entry</label>
+        <div class="modewrap"><button type="button" id="rdLinkOn" class="on">Auto-create</button><button type="button" id="rdLinkOff">Log only</button></div></div>
+      <div class="field" id="rdHelocWrap" style="display:none"><label>Which HELOC line</label><select id="rdHeloc"></select></div>
+    </div>
+    <div class="field"><label>Note</label><input type="text" id="rdNote"></div>
+    <button class="primary" id="rdAdd">Record refund</button>
+    <p class="faint" id="rdLinkHint" style="margin-top:.4rem"></p>
+    <div class="scrollx" style="margin-top:.8rem"><table id="rdTable"></table></div>
+  </div>
+  <div class="card">
+    <div class="spread"><h2>T1213 draft — reduce tax withheld at source</h2><button id="t1213Btn">Generate draft</button></div>
+    <p class="faint">Form T1213 asks the CRA to let your employer withhold less tax because of known deductions (like SM interest). Output below is a <b>draft worksheet only</b> — transcribe onto the official CRA form and have a professional sanity-check it.</p>
+    <pre id="t1213Out" style="white-space:pre-wrap;font-family:var(--mono);font-size:.82rem;background:var(--input-bg);border:1px solid var(--line);border-radius:8px;padding:.8rem;display:none"></pre>
+  </div>
+</section>
+
+<!-- ========== SIMULATOR ========== -->
+<section class="view" id="view-sim">
+  <div class="pagehead"><h1>Simulator</h1><div class="acts"></div></div>
+
+  <div class="card">
+    <h2>Quick check — is it even worth it?</h2>
+    <p class="faint">One number: your borrowing costs less after the tax deduction, so you win whenever your investment return beats that after-tax cost. Enter two figures for an instant read; scroll down for the full year-by-year projection.</p>
+    <div class="grid g3">
+      <div class="field"><label>Borrowing rate % <span class="red">*</span></label><input type="number" id="qcRate" step="0.01" placeholder="your HELOC / loan rate"></div>
+      <div class="field"><label>Marginal tax rate % <span class="red">*</span></label><input type="number" id="qcMTR" step="0.1" placeholder="fed+prov combined"></div>
+      <div class="field"><label>Amount borrowed $ <span class="faint">(optional)</span></label><input type="number" id="qcAmt" placeholder="to see dollar figures"></div>
+    </div>
+    <button class="primary" id="qcRun">Quick check</button>
+    <div id="qcOut" style="margin-top:.9rem"></div>
+  </div>
+
+  <div class="card">
+    <h2>Full projection</h2>
+    <p class="faint">Three strategies run side-by-side on identical assumptions: <b>Do nothing</b> (baseline), <b>Debt swap</b> (pure SM — no added leverage), and <b>Leveraged SM</b>. No projection is useful without the do-nothing comparison.</p>
+    <div class="grid g3">
+      <div class="field"><label>Mortgage balance $</label><input type="number" id="sMort" placeholder="e.g. 400000"></div>
+      <div class="field"><label>Mortgage rate %</label><input type="number" id="sMRate" step="0.01" placeholder="your actual rate"></div>
+      <div class="field"><label>Mortgage compounding</label>
+        <select id="sComp"><option value="" disabled selected>Select…</option><option value="2">Semi-annual</option><option value="12">Monthly</option><option value="match">Matches payment cycle</option></select></div>
+      <div class="field"><label>Amortization yrs</label><input type="number" id="sAmort" placeholder="e.g. 25"></div>
+      <div class="field"><label>HELOC rate %</label><input type="number" id="sHRate" step="0.01" placeholder="your actual HELOC rate"></div>
+      <div class="field"><label>Expected total return %/yr</label><input type="number" id="sRet" step="0.1" placeholder="your assumption"></div>
+      <div class="field"><label>Dividend yield %/yr</label><input type="number" id="sYield" step="0.1" placeholder="your assumption"></div>
+      <div class="field"><label>Marginal tax rate %</label><input type="number" id="sMTR" step="0.1" placeholder="fed+prov combined"></div>
+      <div class="field"><label>Dividend tax rate %</label><input type="number" id="sDivTax" step="0.1" placeholder="your eff. dividend rate"></div>
+      <div class="field"><label>Extra monthly cashflow $</label><input type="number" id="sExtra" placeholder="e.g. 300"></div>
+      <div class="field"><label>Horizon (years)</label><input type="number" id="sYears" placeholder="e.g. 25"></div>
+      <div class="field"><label>Leveraged: initial lump $</label><input type="number" id="sLump" placeholder="0 if none"></div>
+      <div class="field"><label>Leveraged: extra draw $/mo</label><input type="number" id="sLevMo" placeholder="0 if none"></div>
+    </div>
+    <details id="marginBox">
+      <summary>Advanced: margin loan layered on a HELOC (read this first)</summary>
+      <div class="disclaimer"><strong>Double leverage.</strong> A margin loan on top of a HELOC compounds risk: margin calls can force selling at the worst time, which a HELOC alone never does. Losses can exceed the strategy's entire benefit. Most people running the SM should not do this. The comparison below exists to show whether it even helps — often it doesn't after rates and tax.</div>
+      <div class="grid g3">
+        <div class="field"><label>Enable margin overlay</label>
+          <select id="sMgOn"><option value="0">Off</option><option value="1">On</option></select></div>
+        <div class="field"><label>Margin rate %</label><input type="number" id="sMgRate" step="0.01" placeholder="your margin rate"></div>
+        <div class="field"><label>Target margin (% of portfolio)</label><input type="number" id="sMgPct" step="1" placeholder="e.g. 20"></div>
+      </div>
+    </details>
+    <button class="primary" id="simRun">Run simulation</button>
+  </div>
+  <div class="card"><canvas id="simChart" class="chart" height="300"></canvas></div>
+  <div class="card"><h2>Results at horizon</h2><div class="scrollx"><table id="simTable"></table></div>
+    <div id="simVerdict" style="margin-top:.8rem"></div></div>
+</section>
+
+<!-- ========== AUDIT & GUIDE ========== -->
+<section class="view" id="view-audit">
+  <div class="pagehead"><h1>Audit &amp; Guide</h1><div class="acts"></div></div>
+  <div class="card">
+    <div class="spread"><h2>Audit package</h2>
+      <div class="row"><button id="auditPrint" class="primary">Print / save PDF</button><button id="auditJson">Export full JSON</button></div>
+    </div>
+    <p class="faint">Generates a printable summary: yearly deductible interest, draw ledger with purposes and notes, holdings, ACB history, refund deployments. Attach your actual bank/brokerage statements behind it — <b>statements are the evidence; this is the index.</b></p>
+    <div id="auditBody"></div>
+  </div>
+  <div class="card">
+    <h2>Record-keeping guide</h2>
+    <details open><summary>What the CRA actually wants</summary>
+      <p>A clean, traceable flow: HELOC draw → dedicated chequing (optional but tidy) → non-registered investment account. Never mix personal spending into the SM credit line. Keep statements at least six years. One experienced filer's approach: once a year download 12 months of HELOC interest, SM chequing, and SM investment statements — that alone satisfies most reviews.</p></details>
+    <details><summary>Capitalizing interest</summary>
+      <p>Borrowing from the HELOC to pay the HELOC's own interest keeps the strategy cash-flow neutral, and that borrowed interest remains deductible <em>if the underlying draws were for investment</em>. Track it as its own draw type (this tool does) so the split survives an audit.</p></details>
+    <details><summary>Return of capital (ROC)</summary>
+      <p>ROC distributions reduce your ACB, and — if spent rather than reinvested or paid onto the investment loan — reduce the deductible portion of the loan. High-ROC ETFs create bookkeeping drag; many SM practitioners prefer dividend payers or low-ROC funds for that reason.</p></details>
+    <details><summary>Mixed-use contamination</summary>
+      <p>One personal draw on an investment-only line forces you to prorate every interest payment forever after. Use a separate line or sub-account for anything personal. If contamination already happened, prorate honestly and document the math.</p></details>
+    <details><summary>Superficial loss rule</summary>
+      <p>Selling at a loss and rebuying the identical security within 30 days (before or after), in <em>any</em> account you or your spouse control, denies the loss. The tool flags same-account cases only.</p></details>
+  </div>
+</section>
+</main>
+</div>
+
+<!-- Transaction dialog -->
+<dialog id="txDialog">
+  <h2>Add transaction</h2>
+  <div class="grid g2">
+    <div class="field"><label>Type</label>
+      <select id="txType">
+        <option value="buy">Buy</option><option value="sell">Sell</option>
+        <option value="div">Dividend (cash)</option><option value="drip">DRIP / reinvested</option>
+        <option value="roc">Return of capital</option><option value="phantom">Phantom (reinvested) distribution</option>
+        <option value="split">Stock split</option>
+      </select></div>
+    <div class="field"><label>Date</label><input type="date" id="txDate"></div>
+    <div class="field"><label>Symbol</label><input type="text" id="txSym" placeholder="VDY.TO" style="text-transform:uppercase"></div>
+    <div class="field" id="fQty"><label>Quantity</label><input type="number" id="txQty" step="0.0001"></div>
+    <div class="field" id="fPrice"><label>Price / unit $</label><input type="number" id="txPrice" step="0.0001"></div>
+    <div class="field" id="fFee"><label>Commission $</label><input type="number" id="txFee" step="0.01" value="0"></div>
+    <div class="field" id="fAmt" style="display:none"><label>Amount $</label><input type="number" id="txAmt" step="0.01"></div>
+    <div class="field" id="fRatio" style="display:none"><label>Split ratio (new per old)</label><input type="number" id="txRatio" step="0.0001" placeholder="2 = 2-for-1, 0.5 = 1-for-2"></div>
+    <div class="field" id="fFrac" style="display:none"><label>Fractional remainder</label>
+      <select id="txFrac"><option value="keep">Keep fractional units</option><option value="round">Round down (drop)</option><option value="cil">Cash in lieu</option></select></div>
+    <div class="field" id="fCil" style="display:none"><label>Cash in lieu $</label><input type="number" id="txCil" step="0.01" value="0"></div>
+  </div>
+  <div class="field"><label>Note</label><input type="text" id="txNote" placeholder="context for future-you"></div>
+  <div class="row" style="justify-content:flex-end"><button id="txCancel">Cancel</button><button class="primary" id="txSave">Save</button></div>
+</dialog>
+
+<!-- CSV import dialog -->
+<dialog id="csvDialog">
+  <h2>Import CSV</h2>
+  <p class="faint">Wealthsimple exports auto-map. Otherwise map columns manually. Recognized types: buy, sell, dividend, DRIP.</p>
+  <div class="field"><label>CSV file</label><input type="file" id="csvFile" accept=".csv,text/csv"></div>
+  <div id="csvMap" style="display:none">
+    <div class="grid g2">
+      <div class="field"><label>Date column</label><select id="cmDate"></select></div>
+      <div class="field"><label>Type column</label><select id="cmType"></select></div>
+      <div class="field"><label>Symbol column</label><select id="cmSym"></select></div>
+      <div class="field"><label>Quantity column</label><select id="cmQty"></select></div>
+      <div class="field"><label>Price column</label><select id="cmPrice"></select></div>
+      <div class="field"><label>Amount column</label><select id="cmAmt"></select></div>
+    </div>
+    <div id="csvPreview" class="faint"></div>
+  </div>
+  <div class="row" style="justify-content:flex-end"><button id="csvCancel">Cancel</button><button class="primary" id="csvGo" disabled>Import</button></div>
+</dialog>
+
+<dialog id="eventDialog">
+  <div class="spread"><h2 id="evTitle" style="margin:0">Event</h2><span class="faint" id="evDate"></span></div>
+  <div id="evExplain" style="margin:.6rem 0 .8rem;font-size:.9rem"></div>
+  <div class="scrollx"><table id="evTable"></table></div>
+  <p id="evNote" style="margin-top:.6rem;font-size:.86rem"></p>
+  <div class="row" style="justify-content:flex-end;margin-top:.8rem"><button class="primary" id="evClose">Close</button></div>
+</dialog>
+<script>
+'use strict';
+/* =================================================================
+   STATE & PERSISTENCE — client-side only, JSON file save/load
+   ================================================================= */
+const BLANK = () => ({
+  version: 1,
+  mode: 'full',                       // 'light' | 'full'
+  mortgage: { principal:null, rate:null, amortYears:null, start:null, freq:'12',
+              compounding:null,
+              paymentMode:'auto', customPayment:null, paymentChanges:[], freqChanges:[],
+              rateChanges:[], prepayments:[] },
+  helocs: [],                         // {id,name,rate,limit,draws:[{date,amount,purpose,note}],payments:[{date,amount,note}]}
+  tx: [],                             // investment transactions
+  refunds: [],                        // {year,amount,to,note}
+  lightYears: [],                     // annual summaries
+  taxMTR: null,
+  theme:'dark',
+  primeHistory: [],                   // [{date,prime}] shared timeline for prime-linked HELOCs
+});
+let S = BLANK();
+let schedView = 'yearly';
+let txView = 'all';
+let fileHandle = null;
+let dirty = false;
+
+const $ = id => document.getElementById(id);
+const fmt$ = n => (n==null||isNaN(n)) ? '—' :
+  new Intl.NumberFormat('en-CA',{style:'currency',currency:'CAD',maximumFractionDigits:0}).format(n);
+const fmt$2 = n => (n==null||isNaN(n)) ? '—' :
+  new Intl.NumberFormat('en-CA',{style:'currency',currency:'CAD',minimumFractionDigits:2}).format(n);
+const fmtN = (n,d=4) => (n==null||isNaN(n)) ? '—' : Number(n).toFixed(d).replace(/\.?0+$/,'');
+const fmtMonths = mo => { const y=Math.floor(mo/12), r=mo%12;
+  return (y?y+'y':'') + (y&&r?' ':'') + (r||!y?r+'mo':''); };
+const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid = () => Math.random().toString(36).slice(2,9);
+const today = () => new Date().toISOString().slice(0,10);
+
+function touch(){ dirty = true; renderAll(); autoSaveMaybe(); }
+
+function serialize(){ return JSON.stringify(S, null, 1); }
+
+async function saveFile(){
+  try{
+    if(window.showSaveFilePicker){
+      if(!fileHandle){
+        fileHandle = await showSaveFilePicker({suggestedName:'smith-manoeuvre-data.json',
+          types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+      }
+      const w = await fileHandle.createWritable();
+      await w.write(serialize()); await w.close();
+      setSaveState('Saved to linked file · '+new Date().toLocaleTimeString());
+      dirty = false; return;
+    }
+  }catch(e){ if(e.name==='AbortError') return; console.warn(e); }
+  // fallback: download
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([serialize()],{type:'application/json'}));
+  a.download = 'smith-manoeuvre-data.json'; a.click(); URL.revokeObjectURL(a.href);
+  setSaveState('Downloaded · re-upload it next session'); dirty = false;
+}
+async function loadFile(){
+  try{
+    if(window.showOpenFilePicker){
+      const [h] = await showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+      fileHandle = h;
+      const f = await h.getFile(); ingest(await f.text());
+      setSaveState('Loaded & linked · auto-save available'); return;
+    }
+  }catch(e){ if(e.name==='AbortError') return; console.warn(e); }
+  const inp = document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+  inp.onchange = () => { const f = inp.files[0]; if(!f) return;
+    const r = new FileReader(); r.onload = () => ingest(r.result); r.readAsText(f); };
+  inp.click();
+}
+function ingest(text){
+  try{ const d = JSON.parse(text);
+    if(typeof d!=='object'||!d.version) throw new Error('not a tracker file');
+    S = Object.assign(BLANK(), d);
+    hydrateForms(); renderAll(); setSaveState('Data loaded');
+  }catch(e){ alert('Could not read that file: '+e.message); }
+}
+let autoTimer = null;
+function autoSaveMaybe(){
+  if(!fileHandle) return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(async ()=>{
+    try{ const w = await fileHandle.createWritable(); await w.write(serialize()); await w.close();
+      setSaveState('Auto-saved · '+new Date().toLocaleTimeString()); dirty=false;
+    }catch(e){ setSaveState('Auto-save failed — use Save button'); }
+  }, 1200);
+}
+function setSaveState(t){ $('savestate').textContent = t; }
+
+$('btnSave').onclick = saveFile;
+$('btnLoad').onclick = loadFile;
+$('btnAutosave').onclick = async ()=>{
+  if(!window.showSaveFilePicker){ alert('Auto-save needs Chrome or Edge (File System Access API). Elsewhere, use Save to download your JSON each session.'); return; }
+  await saveFile();
+  if(fileHandle) alert('Auto-save is on: this tab will write changes to the linked file automatically.');
+};
+$('btnWipe').onclick = ()=>{
+  if(confirm('Erase ALL data in this tab? Your saved JSON file (if any) is not deleted.')){
+    S = BLANK(); fileHandle = null; hydrateForms(); renderAll(); setSaveState('Cleared — no file linked');
+  }
+};
+window.addEventListener('beforeunload', e => { if(dirty){ e.preventDefault(); e.returnValue=''; } });
+
+/* ---------- navigation ---------- */
+document.querySelectorAll('.navbtn').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('.navbtn').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    $('view-'+b.dataset.view).classList.add('active');
+  };
+});
+/* ---------- light/full mode ---------- */
+function setMode(m){
+  S.mode = m;
+  $('modeLight').classList.toggle('on', m==='light');
+  $('modeFull').classList.toggle('on', m==='full');
+  $('lightPanel').style.display = m==='light' ? '' : 'none';
+}
+function applyTheme(t){
+  if(t==='light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  $('btnTheme').textContent = t==='light' ? 'Dark mode' : 'Light mode';
+}
+$('btnTheme').onclick = ()=>{
+  S.theme = (S.theme==='light') ? 'dark' : 'light';
+  applyTheme(S.theme);
+  renderAll();            // charts re-read CSS vars
+  autoSaveMaybe(); dirty = true;
+};
+$('modeLight').onclick = ()=>{ setMode('light'); touch(); };
+$('modeFull').onclick  = ()=>{ setMode('full'); touch(); };
+
+/* light-mode annual rows */
+$('lyAdd').onclick = ()=>{
+  const y = +$('lyYear').value; if(!y){ alert('Year required'); return; }
+  S.lightYears = S.lightYears.filter(r=>r.year!==y);
+  S.lightYears.push({year:y, interest:+$('lyInterest').value||0, heloc:+$('lyHeloc').value||0,
+    mort:+$('lyMort').value||0, port:+$('lyPort').value||0, div:+$('lyDiv').value||0, note:$('lyNote').value});
+  S.lightYears.sort((a,b)=>a.year-b.year); touch();
+};
+function renderLight(){
+  const t = $('lyTable');
+  if(!S.lightYears.length){ t.innerHTML='<tr><td class="empty">No annual summaries yet.</td></tr>'; return; }
+  t.innerHTML = '<tr><th>Year</th><th class="num">Deductible interest</th><th class="num">Inv. HELOC</th><th class="num">Mortgage</th><th class="num">Portfolio</th><th class="num">Dividends</th><th>Note</th><th></th></tr>' +
+    S.lightYears.map((r,i)=>`<tr><td class="num">${r.year}</td><td class="num">${fmt$2(r.interest)}</td>
+      <td class="num">${fmt$(r.heloc)}</td><td class="num">${fmt$(r.mort)}</td><td class="num">${fmt$(r.port)}</td>
+      <td class="num">${fmt$2(r.div)}</td><td class="faint">${esc(r.note)}</td>
+      <td><button class="small danger" onclick="delLightYear(${i})">×</button></td></tr>`).join('');
+}
+window.delLightYear = i => { S.lightYears.splice(i,1); touch(); };
+/* =================================================================
+   MORTGAGE ENGINE — configurable compounding
+   Semi-annual is the Canadian fixed-rate convention. Variable-rate
+   products often compound monthly, or align compounding with the
+   payment cycle, depending on lender.
+   ================================================================= */
+function paymentsPerYear(freq){ return freq.startsWith('52') ? 52 : freq.startsWith('26') ? 26 : 12; }
+const FREQLABEL = {'12':'Monthly','26':'Bi-weekly','26a':'Accel. bi-weekly','52':'Weekly','52a':'Accel. weekly'};
+function freqLabel(f){ return FREQLABEL[f] || f; }
+// Resolve the payment frequency in force on a given date (base freq + dated changes).
+function freqAt(M, dateStr){
+  let f = M.freq || '12';
+  const chs = [...(M.freqChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  for(const c of chs){ if(c.date <= dateStr) f = c.freq; else break; }
+  return f;
+}
+
+// Resolve a compounding setting to compounds-per-year.
+// 'match' = compounding aligns with the payment cycle.
+function compoundsPerYear(comp, m){
+  if(comp==='match') return m;
+  const c = +comp;
+  return (c && c>0) ? c : 2;              // default: semi-annual
+}
+// Periodic rate for m payments/yr, given a nominal annual rate compounded c times/yr.
+// c=2 semi-annual, c=12 monthly, c=m payment-aligned, c=365 daily.
+function periodicRate(annualPct, m, comp){
+  const j = annualPct/100;
+  const c = compoundsPerYear(comp===undefined ? (S.mortgage && S.mortgage.compounding) : comp, m);
+  return Math.pow(1 + j/c, c/m) - 1;
+}
+// Effective annual rate, for display/comparison.
+function effectiveAnnual(annualPct, comp, m){
+  const c = compoundsPerYear(comp, m);
+  return (Math.pow(1 + (annualPct/100)/c, c) - 1) * 100;
+}
+
+// standard payment for a rate/term; accelerated = monthly payment ÷ (2 or 4)
+function stdPayment(P, annualPct, years, freq, comp){
+  const m = paymentsPerYear(freq);
+  if(freq==='26a' || freq==='52a'){
+    const iM = periodicRate(annualPct,12,comp), nM = years*12;
+    const pm = P * iM / (1 - Math.pow(1+iM,-nM));
+    return freq==='26a' ? pm/2 : pm/4;
+  }
+  const i = periodicRate(annualPct,m,comp), n = years*m;
+  return P * i / (1 - Math.pow(1+i,-n));
+}
+
+function addPeriods(dateStr, k, m){
+  const d = new Date(dateStr+'T00:00:00');
+  if(m===12){ const r = new Date(d); r.setMonth(r.getMonth()+k); return r; }
+  const days = m===26 ? 14 : 7;
+  return new Date(d.getTime() + k*days*86400000);
+}
+
+// Resolve the payment amount in force on a given date. Returns null when the
+// schedule should use the lender-calculated payment instead.
+function paymentOverrideAt(M, dateStr){
+  let amt = (M.paymentMode==='custom' && M.customPayment>0) ? M.customPayment : null;
+  const chs = [...(M.paymentChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  for(const c of chs){ if(c.date <= dateStr) amt = c.amount; else break; }
+  return amt;
+}
+
+const COMPOUNDING = {
+  '2':   'Semi-annual (fixed-rate standard)',
+  '12':  'Monthly (common on variable)',
+  'match':'Matches payment cycle',
+  '1':   'Annual',
+  '4':   'Quarterly',
+  '365': 'Daily',
+};
+function compLabel(c){ return COMPOUNDING[c] || 'Semi-annual'; }
+
+// Build full schedule honoring rate changes, payment/frequency changes,
+// custom payments & prepayments. Advances a date cursor so payment FREQUENCY
+// can change partway through (monthly → accelerated bi-weekly, etc.). On any
+// frequency or rate change the auto payment re-amortizes over the remaining
+// term; a custom payment stays put and the interest/principal split moves.
+// opts.ignoreCustom builds the lender-calculated baseline for comparison.
+// opts.baseFreqOnly ignores freqChanges (for the "original terms" baseline).
+function buildSchedule(opts){
+  const M = S.mortgage;
+  const ignoreCustom = opts && opts.ignoreCustom;
+  const baseFreqOnly = opts && opts.baseFreqOnly;
+  if(!M.principal || !M.rate || !M.amortYears || !M.start || !M.compounding) return null;
+  const rcs = [...M.rateChanges].sort((a,b)=>a.date.localeCompare(b.date));
+  const pps = [...M.prepayments].sort((a,b)=>a.date.localeCompare(b.date));
+
+  let bal = M.principal, rate = M.rate, comp = M.compounding;
+  let freq = baseFreqOnly ? M.freq : freqAt(M, M.start);
+  let m = paymentsPerYear(freq);
+  let i = periodicRate(rate, m, comp);
+  // remaining amortization tracked in YEARS so it survives frequency changes
+  let remYears = M.amortYears;
+  let pay = stdPayment(bal, rate, remYears, freq, comp);
+
+  const rows = []; let rcIdx=0, ppIdx=0;
+  let negAmCount=0, unpaidInterest=0, blewUp=false, payCount=0;
+  const maxPayments = Math.round(M.amortYears * 52 * 3);   // hard cap
+  let cursor = M.start;
+
+  const recalc = ()=>{ m = paymentsPerYear(freq); i = periodicRate(rate,m,comp);
+                       pay = stdPayment(bal, rate, Math.max(remYears,1/m), freq, comp); };
+
+  for(let guard=0; guard<maxPayments && bal>0.005; guard++){
+    // advance one payment period from the cursor at the CURRENT frequency
+    const pd = addPeriods(cursor, 1, m);
+    const pdStr = pd.toISOString().slice(0,10);
+
+    // apply rate changes effective on/before this payment date
+    while(rcIdx<rcs.length && rcs[rcIdx].date <= pdStr){
+      rate = rcs[rcIdx].rate;
+      if(rcs[rcIdx].compounding) comp = rcs[rcIdx].compounding;
+      recalc();
+      rows.push({date:rcs[rcIdx].date, type:'rate', rate, comp, bal,
+                 note:'Rate → '+rate+'%'+(rcs[rcIdx].compounding?' · '+compLabel(rcs[rcIdx].compounding):'')});
+      rcIdx++;
+    }
+    // apply frequency changes effective on/before this payment date
+    if(!baseFreqOnly){
+      const fNow = freqAt(M, pdStr);
+      if(fNow !== freq){
+        freq = fNow; recalc();
+        rows.push({date:pdStr, type:'freq', freq, bal, note:'Frequency → '+freqLabel(freq)});
+      }
+    }
+    // prepayments on/before this payment date
+    while(ppIdx<pps.length && pps[ppIdx].date <= pdStr){
+      const amt = Math.min(pps[ppIdx].amount, bal);
+      bal -= amt;
+      rows.push({date:pps[ppIdx].date, type:'prepay', amount:amt, bal, note:pps[ppIdx].note||pps[ppIdx].source||''});
+      ppIdx++;
+    }
+    if(bal<=0.005) break;
+
+    const override = ignoreCustom ? null : paymentOverrideAt(M, pdStr);
+    const effPay = override!=null ? override : pay;
+    const interest = bal * i;
+    let principal = effPay - interest, neg=false;
+    if(principal < 0){ neg=true; negAmCount++; unpaidInterest += -principal; }
+    if(principal > bal) principal = bal;
+    bal -= principal;
+    remYears = Math.max(remYears - 1/m, 0);
+    payCount++;
+    rows.push({date:pdStr, type:'pay', pay:Math.min(effPay, interest+principal),
+               interest, principal, bal, neg, custom:override!=null, freq});
+    cursor = pdStr;
+    if(bal > M.principal*3){ blewUp = true; break; }
+  }
+  while(ppIdx<pps.length && bal>0.005){
+    const amt = Math.min(pps[ppIdx].amount, bal); bal-=amt;
+    rows.push({date:pps[ppIdx].date, type:'prepay', amount:amt, bal, note:pps[ppIdx].note||''});
+    ppIdx++;
+  }
+  rows.meta = { negAmCount, unpaidInterest, blewUp,
+                paidOff: bal<=0.005, finalBal: bal, payCount };
+  return rows;
+}
+
+function mortgageStats(rows){
+  if(!rows) return null;
+  const M = S.mortgage;
+  const now = today();
+  const pays = rows.filter(r=>r.type==='pay');
+  const totInt = pays.reduce((s,r)=>s+r.interest,0);
+  const totPrin = pays.reduce((s,r)=>s+r.principal,0) + rows.filter(r=>r.type==='prepay').reduce((s,r)=>s+r.amount,0);
+  const payoff = rows.length? rows[rows.length-1].date : null;
+  let balNow = M.principal, prinPaidNow = 0, rateNow = M.rate, compNow = M.compounding, freqNow = freqAt(M, now);
+  for(const r of rows){ if(r.date>now) break; balNow = r.bal;
+    if(r.type==='pay'){ prinPaidNow += r.principal; freqNow = r.freq || freqNow; }
+    if(r.type==='prepay') prinPaidNow += r.amount;
+    if(r.type==='rate'){ rateNow = r.rate; if(r.comp) compNow = r.comp; }
+    if(r.type==='freq') freqNow = r.freq; }
+  const mNow = paymentsPerYear(freqNow);
+  const nextPay = pays.find(r=>r.date>=now) || pays[pays.length-1];
+  const override = paymentOverrideAt(M, now);
+  const calcPay = stdPayment(M.principal, M.rate, M.amortYears, freqNow, M.compounding);
+  // Trigger rate on the current compounding basis
+  let triggerRate = null;
+  if(override!=null && balNow>0){
+    const c = compoundsPerYear(compNow, mNow);
+    const iTrig = override/balNow;
+    triggerRate = c*(Math.pow(1+iTrig, mNow/c) - 1)*100;
+  }
+  // Payoff delta: actual payoff vs. the original contract terms (start + amortization).
+  // Original end = start date + amortization years (calendar), which is what the
+  // lender's contract implies before any prepayments / frequency / payment changes.
+  let payoffDelta = null;
+  if(payoff && M.start){
+    const origEnd = new Date(M.start+'T00:00:00'); origEnd.setFullYear(origEnd.getFullYear()+Math.round(M.amortYears));
+    const actual = new Date(payoff+'T00:00:00');
+    const months = (origEnd.getFullYear()-actual.getFullYear())*12 + (origEnd.getMonth()-actual.getMonth());
+    payoffDelta = { months, origEnd: origEnd.toISOString().slice(0,10) }; // +months = ahead of schedule
+  }
+  let remainingMonths = null;
+  if(payoff){
+    const nd=new Date(now+'T00:00:00'), pdte=new Date(payoff+'T00:00:00');
+    remainingMonths = Math.max((pdte.getFullYear()-nd.getFullYear())*12 + (pdte.getMonth()-nd.getMonth()), 0);
+  }
+  return { totInt, totPrin, payoff, balNow, prinPaidNow, rateNow, compNow, freqNow, remainingMonths,
+    payment: nextPay ? nextPay.pay : 0,
+    paymentSet: override!=null ? override : calcPay,
+    calcPay, isCustom: override!=null, triggerRate, payoffDelta,
+    effAnnual: effectiveAnnual(rateNow, compNow, mNow),
+    meta: rows.meta || {} };
+}
+
+function renderMortgage(){
+  const M = S.mortgage;
+  $('mComp').value = M.compounding || '';
+  $('mComp').classList.toggle('needs-pick', !M.compounding);
+  $('mPayMode').value = M.paymentMode || 'auto';
+  $('mCustomWrap').style.display = M.paymentMode==='custom' ? '' : 'none';
+  $('mCustomPay').value = M.customPayment ?? '';
+  const rows = buildSchedule();
+  const st = mortgageStats(rows);
+  // hint line: what the lender formula says vs what you're actually paying
+  $('mPayHint').innerHTML = !st
+    ? ((M.principal && M.rate && M.amortYears && M.start && !M.compounding)
+        ? `<span class="gold"><b>Compounding not set.</b></span> There's no safe default — semi-annual is standard for fixed-rate, but variable products often compound monthly or align with the payment cycle. Check your mortgage documents. <span class="faint">(Versions of this tool before this option assumed semi-annual; pick that to reproduce your earlier figures.)</span>`
+        : '')
+    : `<span class="tag ${M.compounding==='2'?'blue':'gold'}">${compLabel(M.compounding)}</span>
+     nominal ${st.rateNow}% → <b>${st.effAnnual.toFixed(3)}%</b> effective annual. ` +
+    (st.isCustom
+      ? `Lender-calculated payment would be <b>${fmt$2(st.calcPay)}</b>; you're paying <b class="gold">${fmt$2(st.paymentSet)}</b> — a difference of <b class="${st.paymentSet>=st.calcPay?'green':'red'}">${(st.paymentSet>=st.calcPay?'+':'−')+fmt$2(Math.abs(st.paymentSet-st.calcPay)).replace('−','')}</b> per payment.`
+      : `Using the lender-calculated payment of <b>${fmt$2(st.calcPay)}</b>. Switch to “Custom” if what leaves your account differs.`);
+  $('mStats').innerHTML = !st ? `<div class="empty" style="grid-column:1/-1">${
+      (M.principal && M.rate && M.amortYears && M.start && !M.compounding)
+        ? 'Select your <b>interest compounding</b> above to generate the schedule.'
+        : 'Enter mortgage details to generate the schedule.'}</div>` : `
+    <div class="stat"><div class="v ${st.isCustom?'gold':''}">${fmt$2(st.paymentSet)}</div><div class="l">Payment${st.isCustom?' (custom)':''}</div></div>
+    <div class="stat"><div class="v">${fmt$(st.balNow)}</div><div class="l">Balance today</div></div>
+    <div class="stat"><div class="v">${fmt$(st.prinPaidNow)}</div><div class="l">Principal paid to date</div></div>
+    <div class="stat"><div class="v">${fmt$(st.totInt)}</div><div class="l">Lifetime interest</div></div>
+    <div class="stat"><div class="v">${st.meta.paidOff ? (st.payoff||'—') : 'never'}</div><div class="l">Payoff date</div></div>
+    ${st.remainingMonths!=null && st.meta.paidOff ? `<div class="stat"><div class="v">${fmtMonths(st.remainingMonths)}</div><div class="l">Time remaining</div></div>`:''}
+    ${st.payoffDelta && st.meta.paidOff ? `<div class="stat"><div class="v ${st.payoffDelta.months>=0?'green':'red'}">${st.payoffDelta.months===0?'on time':(st.payoffDelta.months>0?'−':'+')+fmtMonths(Math.abs(st.payoffDelta.months))}</div><div class="l">vs. original ${Math.round(M.amortYears)}-yr term</div></div>`:''}
+    <div class="stat"><div class="v">${freqLabel(st.freqNow)}</div><div class="l">Current frequency</div></div>
+    ${st.triggerRate!=null?`<div class="stat"><div class="v ${st.rateNow>=st.triggerRate-0.5?'red':''}">${st.triggerRate.toFixed(2)}%</div><div class="l">Trigger rate</div></div>`:''}`;
+  // warnings + comparison against the lender-calculated baseline
+  let extra = '';
+  if(st && st.meta.negAmCount>0){
+    extra += `<div class="disclaimer" style="margin-top:.8rem"><strong>Payment doesn't cover interest.</strong>
+      ${st.meta.negAmCount} payment${st.meta.negAmCount===1?'':'s'} in this schedule fall short, adding
+      ${fmt$2(st.meta.unpaidInterest)} of unpaid interest onto the balance (negative amortization).
+      Your trigger rate is ${st.triggerRate!=null?st.triggerRate.toFixed(2)+'%':'—'} — above that, the balance grows.
+      Most lenders force a payment increase at this point; this projection just shows the raw math.</div>`;
+  }
+  if(st && !st.meta.paidOff){
+    extra += `<div class="disclaimer" style="margin-top:.8rem"><strong>Never pays off.</strong> At this payment the balance doesn't reach zero within three times the amortization. Raise the payment or add prepayments.</div>`;
+  }
+  if(st && st.isCustom){
+    const base = mortgageStats(buildSchedule({ignoreCustom:true}));
+    if(base){
+      const dInt = base.totInt - st.totInt;
+      extra += `<div class="callout" style="margin-top:.8rem">
+        <b>vs. the lender-calculated payment:</b>
+        payoff ${st.meta.paidOff? st.payoff : 'never'} vs. ${base.payoff} ·
+        lifetime interest ${fmt$(st.totInt)} vs. ${fmt$(base.totInt)} —
+        <b class="${dInt>=0?'green':'red'}">${dInt>=0?'saving ':'costing '}${fmt$(Math.abs(dInt))}</b>.
+        ${dInt>0?'For the Smith Manoeuvre, paying more also converts debt faster — every extra dollar of principal frees HELOC room to re-borrow and invest.':''}</div>`;
+    }
+  }
+  if(st && st.payoffDelta && st.meta.paidOff && st.payoffDelta.months!==0){
+    const d = st.payoffDelta;
+    extra += `<div class="callout" style="margin-top:.8rem">
+      <b>Payoff timing:</b> projected ${st.payoff} vs. the original ${Math.round(M.amortYears)}-year term ending ${d.origEnd} —
+      <b class="${d.months>0?'green':'red'}">${d.months>0?fmtMonths(d.months)+' ahead of':fmtMonths(-d.months)+' behind'} schedule</b>.
+      ${d.months>0?'Prepayments, accelerated frequency, and higher payments all pull this in.':'Lower payments or negative amortization push this out.'}</div>`;
+  }
+  $('mCompare').innerHTML = extra;
+  // frequency change table
+  const fcs = [...(M.freqChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  $('fcTable').innerHTML = fcs.length ?
+    '<tr><th>Effective date</th><th>Frequency</th><th></th></tr>' +
+    fcs.map(c=>{ const idx=M.freqChanges.indexOf(c);
+      return `<tr><td>${c.date}</td><td><span class="tag blue">${freqLabel(c.freq)}</span></td>
+      <td><button class="small danger" onclick="delFC(${idx})">×</button></td></tr>`; }).join('')
+    : '<tr><td class="empty">No frequency changes recorded.</td></tr>';
+  // rate change table
+  const rcsSorted = [...M.rateChanges].sort((a,b)=>a.date.localeCompare(b.date));
+  $('rcTable').innerHTML = rcsSorted.length ?
+    '<tr><th>Date</th><th class="num">Rate %</th><th>Compounding</th><th></th></tr>' +
+    rcsSorted.map(r=>{ const i=M.rateChanges.indexOf(r);
+      return `<tr><td>${r.date}</td><td class="num">${r.rate}</td>
+      <td class="faint">${r.compounding?compLabel(r.compounding):'—'}</td>
+      <td><button class="small danger" onclick="delRC(${i})">×</button></td></tr>`;}).join('')
+    : '<tr><td class="empty">No rate changes recorded.</td></tr>';
+  // payment change table
+  const pcs = [...(M.paymentChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  $('pcTable').innerHTML = pcs.length ?
+    '<tr><th>Effective date</th><th class="num">Payment</th><th></th></tr>' +
+    pcs.map(c=>{ const idx=M.paymentChanges.indexOf(c);
+      return `<tr><td>${c.date}</td><td class="num gold">${fmt$2(c.amount)}</td>
+      <td><button class="small danger" onclick="delPC(${idx})">×</button></td></tr>`; }).join('')
+    : '<tr><td class="empty">No payment changes recorded.</td></tr>';
+  // prepay table
+  const ppsSorted = [...M.prepayments].sort((a,b)=>a.date.localeCompare(b.date));
+  $('ppTable').innerHTML = ppsSorted.length ?
+    '<tr><th>Date</th><th class="num">Amount</th><th>Source</th><th>Note</th><th></th></tr>' +
+    ppsSorted.map(r=>{ const i=M.prepayments.indexOf(r);
+      return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
+      <td><span class="tag blue">${esc(r.source)}</span></td><td class="faint">${esc(r.note)}</td>
+      <td><button class="small danger" onclick="delPP(${i})">×</button></td></tr>`;}).join('')
+    : '<tr><td class="empty">No prepayments recorded. Prepay → re-borrow → invest is the whole engine.</td></tr>';
+  // schedule — yearly rollup or full per-payment detail
+  const t = $('mSched');
+  if(!rows){ t.innerHTML='<tr><td class="empty">No schedule yet.</td></tr>'; return; }
+  if(schedView==='full'){
+    const evs = rows.filter(r=>r.type!=='pay'||true); // all rows, chronological
+    const body = rows.map(r=>{
+      if(r.type==='pay') return `<tr><td>${r.date}</td><td><span class="faint">${freqLabel(r.freq)}</span>${r.neg?' <span class="tag red">neg</span>':''}${r.custom?' <span class="tag gold">custom</span>':''}</td>
+        <td class="num red">${fmt$2(r.interest)}</td><td class="num ${r.principal<0?'red':''}">${fmt$2(r.principal)}</td>
+        <td class="num">${fmt$2(r.pay)}</td><td class="num">${fmt$(r.bal)}</td></tr>`;
+      if(r.type==='prepay') return `<tr><td>${r.date}</td><td><span class="tag gold">Prepayment</span>${r.note?` <span class="faint">${esc(r.note)}</span>`:''}</td>
+        <td></td><td class="num gold">${fmt$2(r.amount)}</td><td></td><td class="num">${fmt$(r.bal)}</td></tr>`;
+      if(r.type==='rate') return `<tr><td>${r.date}</td><td colspan="4"><span class="tag blue">${esc(r.note)}</span></td><td class="num">${fmt$(r.bal)}</td></tr>`;
+      if(r.type==='freq') return `<tr><td>${r.date}</td><td colspan="4"><span class="tag blue">${esc(r.note)}</span></td><td class="num">${fmt$(r.bal)}</td></tr>`;
+      return '';
+    }).join('');
+    t.innerHTML = '<tr><th>Date</th><th>Event</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Payment</th><th class="num">Balance</th></tr>'+body;
+  } else {
+    const byYear = {};
+    rows.forEach(r=>{ const y=r.date.slice(0,4); (byYear[y]=byYear[y]||{int:0,prin:0,pre:0,end:0,neg:false}).end=r.bal;
+      if(r.type==='pay'){byYear[y].int+=r.interest; byYear[y].prin+=r.principal; if(r.neg) byYear[y].neg=true;}
+      if(r.type==='prepay'){byYear[y].pre+=r.amount;} });
+    t.innerHTML = '<tr><th>Year</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Prepaid</th><th class="num">End balance</th></tr>'+
+      Object.entries(byYear).map(([y,r])=>`<tr><td>${y}${r.neg?' <span class="tag red">neg am</span>':''}</td><td class="num red">${fmt$(r.int)}</td>
+        <td class="num ${r.prin<0?'red':''}">${fmt$(r.prin)}</td><td class="num gold">${r.pre?fmt$(r.pre):'—'}</td>
+        <td class="num">${fmt$(r.end)}</td></tr>`).join('');
+  }
+}
+window.delRC = i => { S.mortgage.rateChanges.splice(i,1); touch(); };
+window.delPP = i => { S.mortgage.prepayments.splice(i,1); touch(); };
+window.delPC = i => { S.mortgage.paymentChanges.splice(i,1); touch(); };
+window.delFC = i => { S.mortgage.freqChanges.splice(i,1); touch(); };
+
+$('fcAdd').onclick = ()=>{
+  const d=$('fcDate').value, f=$('fcFreq').value;
+  if(!d){ alert('Effective date required'); return; }
+  S.mortgage.freqChanges = (S.mortgage.freqChanges||[]).filter(c=>c.date!==d);
+  S.mortgage.freqChanges.push({date:d, freq:f});
+  S.mortgage.freqChanges.sort((a,b)=>a.date.localeCompare(b.date));
+  touch();
+};
+$('schedYearly').onclick = ()=>{ schedView='yearly'; $('schedYearly').classList.add('on'); $('schedFull').classList.remove('on'); renderMortgage(); };
+$('schedFull').onclick  = ()=>{ schedView='full';  $('schedFull').classList.add('on'); $('schedYearly').classList.remove('on'); renderMortgage(); };
+
+$('mPayMode').onchange = ()=>{
+  S.mortgage.paymentMode = $('mPayMode').value;
+  $('mCustomWrap').style.display = S.mortgage.paymentMode==='custom' ? '' : 'none';
+  touch();
+};
+$('mApply').onclick = ()=>{
+  if(!$('mComp').value){
+    alert('Please select your interest compounding basis.\n\nSemi-annual is standard for Canadian fixed-rate mortgages; variable-rate products often compound monthly or align with the payment cycle. Your mortgage documents will state it.');
+    $('mComp').focus(); return;
+  }
+  S.mortgage.principal = +$('mPrincipal').value || null;
+  S.mortgage.rate = +$('mRate').value || null;
+  S.mortgage.amortYears = +$('mAmort').value || null;
+  S.mortgage.start = $('mStart').value || null;
+  S.mortgage.freq = $('mFreq').value;
+  S.mortgage.compounding = $('mComp').value;
+  S.mortgage.paymentMode = $('mPayMode').value;
+  S.mortgage.customPayment = $('mCustomPay').value==='' ? null : +$('mCustomPay').value;
+  touch();
+};
+$('pcAdd').onclick = ()=>{
+  const d=$('pcDate').value, a=+$('pcAmt').value;
+  if(!d || $('pcAmt').value===''){ alert('Date and payment amount required'); return; }
+  S.mortgage.paymentChanges = (S.mortgage.paymentChanges||[]).filter(c=>c.date!==d);
+  S.mortgage.paymentChanges.push({date:d, amount:a});
+  S.mortgage.paymentChanges.sort((x,z)=>x.date.localeCompare(z.date));
+  $('pcAmt').value=''; touch();
+};
+$('rcAdd').onclick = ()=>{
+  const d=$('rcDate').value, r=+$('rcRate').value, c=$('rcComp').value;
+  if(!d||!r){ alert('Date and rate required'); return; }
+  const entry = {date:d, rate:r};
+  if(c) entry.compounding = c;
+  S.mortgage.rateChanges.push(entry); touch();
+};
+$('ppAdd').onclick = ()=>{
+  const d=$('ppDate').value, a=+$('ppAmt').value;
+  if(!d||!a){ alert('Date and amount required'); return; }
+  S.mortgage.prepayments.push({date:d, amount:a, source:$('ppSrc').value, note:$('ppNote').value});
+  $('ppNote').value=''; touch();
+};
+$('mCsv').onclick = ()=>{
+  const rows = buildSchedule(); if(!rows) return;
+  const csv = 'date,type,frequency,payment,interest,principal,prepaid,balance,custom_payment,negative_amortization\n' +
+    rows.map(r=>[r.date,r.type,r.freq?freqLabel(r.freq):'',r.pay||'',r.interest||'',r.principal||'',r.amount||'',r.bal,
+      r.custom?'yes':'',r.neg?'yes':''].join(',')).join('\n');
+  dl(csv,'amortization.csv');
+};
+function dl(text,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+/* =================================================================
+   HELOC — multiple lines, purpose-tagged draws, capitalization split
+   ================================================================= */
+const PURPOSES = {
+  invest:      {label:'Investment', cls:'gold', deductible:true},
+  capint:      {label:'Capitalized interest', cls:'gold', deductible:true},
+  personal:    {label:'Personal (non-deductible)', cls:'red', deductible:false},
+  other:       {label:'Other / mixed', cls:'red', deductible:false},
+};
+$('hAddLine').onclick = ()=>{
+  const name = prompt('Name this credit line (e.g. "Scotia STEP — SM sub-account")');
+  if(!name) return;
+  S.helocs.push({id:uid(), name, limit:null, draws:[], payments:[],
+    rateMode:'fixed', delta:null, rateHistory:[],
+    limitMode:'fixed', homeValue:null, maxLTV:null});
+  touch();
+};
+// Backward-compat + normalization: fold any legacy single `rate` into rateHistory.
+function migrateHeloc(h){
+  if(!h.rateHistory) h.rateHistory = [];
+  if(!h.rateMode) h.rateMode = 'prime' in h ? 'prime' : 'fixed';
+  if(h.rate!=null && !h.rateHistory.length){
+    // anchor legacy fixed rate at the line's earliest activity (or epoch)
+    const dates = [...h.draws.map(d=>d.date), ...h.payments.map(p=>p.date)].sort();
+    h.rateHistory.push({date: dates[0] || '2000-01-01', rate: h.rate});
+  }
+  delete h.rate;
+  if(!h.limitMode) h.limitMode = 'fixed';
+  if(h.homeValue===undefined) h.homeValue = null;
+  if(h.maxLTV===undefined) h.maxLTV = null;
+}
+// Effective credit limit for a line, today. For a re-advanceable line linked to
+// the mortgage, the limit grows as principal is repaid:
+//   limit = homeValue × maxLTV% − current mortgage balance
+// Returns {limit, dynamic, detail} or {limit:null} when not determinable.
+function helocLimitNow(h){
+  if(h.limitMode==='readvanceable'){
+    if(!h.homeValue || !h.maxLTV) return {limit:null, dynamic:true};
+    const st = mortgageStats(buildSchedule());
+    const mortBal = st ? st.balNow : (S.mortgage.principal||0);
+    const lim = Math.max(h.homeValue*(h.maxLTV/100) - mortBal, 0);
+    return {limit:lim, dynamic:true,
+      detail:`${fmt$(h.homeValue)} × ${h.maxLTV}% − ${fmt$(mortBal)} mortgage`};
+  }
+  return {limit: h.limit ?? null, dynamic:false};
+}
+// Effective annual rate (%) for a line on a given date (ms). Returns null if unknown.
+function helocRateAt(h, ms){
+  if(h.rateMode==='prime'){
+    if(h.delta==null) return null;
+    const p = primeAt(ms);
+    return p==null ? null : p + h.delta;
+  }
+  // fixed / manual history: latest change on or before the date
+  const hist = [...(h.rateHistory||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  let r = null;
+  for(const c of hist){ if(new Date(c.date).getTime() <= ms) r = c.rate; else break; }
+  // if date precedes first recorded change, fall back to the first known rate
+  if(r==null && hist.length) r = hist[0].rate;
+  return r;
+}
+function primeAt(ms){
+  const hist = [...(S.primeHistory||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  let p = null;
+  for(const c of hist){ if(new Date(c.date).getTime() <= ms) p = c.prime; else break; }
+  if(p==null && hist.length) p = hist[0].prime;
+  return p;
+}
+// Current (today) effective rate, for display.
+function helocRateNow(h){ return helocRateAt(h, Date.now()); }
+// All rate-change boundary timestamps affecting a line within [t0,t1)
+function rateBoundaries(h, t0, t1){
+  const out = [];
+  const push = d => { const ms=new Date(d).getTime(); if(ms>t0 && ms<t1) out.push(ms); };
+  if(h.rateMode==='prime'){ (S.primeHistory||[]).forEach(c=>push(c.date)); }
+  else { (h.rateHistory||[]).forEach(c=>push(c.date)); }
+  return out.sort((a,b)=>a-b);
+}
+function helocTotals(h){
+  let dedDraw=0, nonDraw=0, paid=0;
+  h.draws.forEach(d=>{ PURPOSES[d.purpose]?.deductible ? dedDraw+=d.amount : nonDraw+=d.amount; });
+  h.payments.forEach(p=> paid+=p.amount);
+  const bal = dedDraw + nonDraw - paid;
+  // principal paydowns apply pro-rata unless purely deductible line
+  const dedShare = (dedDraw+nonDraw)>0 ? dedDraw/(dedDraw+nonDraw) : 0;
+  return { dedDraw, nonDraw, paid, bal, dedBal: Math.max(bal*dedShare,0), capint: h.draws.filter(d=>d.purpose==='capint').reduce((s,d)=>s+d.amount,0) };
+}
+function renderHelocs(){
+  const wrap = $('helocList');
+  if(!S.helocs.length){ wrap.innerHTML = '<div class="empty">No credit lines yet. Add your readvanceable HELOC (and any others) to start tagging draws.</div>'; return; }
+  S.helocs.forEach(migrateHeloc);
+  wrap.innerHTML = primePanel() + S.helocs.map((h,hi)=>{
+    const t = helocTotals(h);
+    const mixed = t.nonDraw>0 && t.dedDraw>0;
+    const rNow = helocRateNow(h);
+    const lim = helocLimitNow(h);
+    const roomAvail = lim.limit!=null ? lim.limit - t.bal : null;
+    const rateBlock = h.rateMode==='prime'
+      ? `<div class="field"><label>Rate basis</label>
+           <select onchange="setRateMode(${hi},this.value)"><option value="fixed">Fixed / manual</option><option value="prime" selected>Prime + delta</option></select></div>
+         <div class="field"><label>Delta vs prime (± %)</label>
+           <input type="number" step="0.01" value="${h.delta??''}" placeholder="e.g. 0.5" onchange="setHeloc(${hi},'delta',this.value===''?null:+this.value)"></div>
+         <div class="field"><label>Effective rate today</label><input disabled value="${rNow!=null?rNow.toFixed(2)+'%':'set prime + delta'}"></div>`
+      : `<div class="field"><label>Rate basis</label>
+           <select onchange="setRateMode(${hi},this.value)"><option value="fixed" selected>Fixed / manual</option><option value="prime">Prime + delta</option></select></div>
+         <div class="field"><label>Effective rate today</label><input disabled value="${rNow!=null?rNow.toFixed(2)+'%':'add a rate below'}"></div>`;
+    // credit-limit block: fixed limit, or re-advanceable derived from LTV
+    const limitBlock = h.limitMode==='readvanceable'
+      ? `<div class="field"><label>Limit type</label>
+           <select onchange="setHeloc(${hi},'limitMode',this.value)"><option value="fixed">Fixed limit</option><option value="readvanceable" selected>Re-advanceable (grows)</option></select></div>
+         <div class="field"><label>Home value $</label><input type="number" step="0.01" value="${h.homeValue??''}" placeholder="appraised value" onchange="setHeloc(${hi},'homeValue',this.value===''?null:+this.value)"></div>
+         <div class="field"><label>Max LTV %</label><input type="number" step="0.1" value="${h.maxLTV??''}" placeholder="usually 65 (or 80 incl. mortgage)" onchange="setHeloc(${hi},'maxLTV',this.value===''?null:+this.value)"></div>`
+      : `<div class="field"><label>Limit type</label>
+           <select onchange="setHeloc(${hi},'limitMode',this.value)"><option value="fixed" selected>Fixed limit</option><option value="readvanceable">Re-advanceable (grows)</option></select></div>
+         <div class="field"><label>Credit limit $</label><input type="number" step="0.01" value="${h.limit??''}" onchange="setHeloc(${hi},'limit',this.value===''?null:+this.value)"></div>`;
+    return `<div class="card">
+      <div class="spread"><h2>${esc(h.name)}</h2>
+        <div class="row">
+          <button class="small" onclick="renameHeloc(${hi})">Rename</button>
+          <button class="small danger" onclick="delHeloc(${hi})">Delete line</button>
+        </div></div>
+      <div class="grid g3" style="margin-bottom:.4rem">
+        ${rateBlock}${limitBlock}
+        <div class="field"><label>Available room ${lim.dynamic?'<span class="tag gold" style="font-size:.6rem">auto</span>':''}</label>
+          <input disabled value="${roomAvail!=null?fmt$(roomAvail):'—'}"></div>
+      </div>
+      ${lim.dynamic && lim.detail ? `<p class="faint" style="margin:-.1rem 0 .5rem">Room grows as you pay down the mortgage: limit = <b>${lim.detail}</b> = ${fmt$(lim.limit)}. ${roomAvail!=null&&roomAvail<0?'<span class="red">You are over the derived limit.</span>':''}</p>`:''}
+      ${lim.dynamic && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV</span> to compute the re-advanceable limit. Max LTV is usually 65% for the revolving HELOC portion (or up to 80% of home value including your mortgage, depending on the product).</p>':''}
+      ${h.rateMode==='fixed' ? rateHistoryEditor(h,hi) :
+        `<p class="faint" style="margin:.2rem 0 .6rem">Effective rate = prime (set once, shared) + this line's delta. Prime changes flow through automatically. <span class="gold">${(S.primeHistory||[]).length?'':'Set prime in the panel above.'}</span></p>`}
+      ${mixed?'<div class="disclaimer" style="margin-bottom:.7rem"><strong>Mixed use detected.</strong> This line has both deductible and non-deductible draws — interest must be prorated and the CRA hates fuzzy math. Strongly consider separate lines/sub-accounts.</div>':''}
+      <div class="statgrid">
+        <div class="stat"><div class="v">${fmt$(t.bal)}</div><div class="l">Balance</div></div>
+        <div class="stat"><div class="v gold">${fmt$(t.dedBal)}</div><div class="l">Deductible balance</div></div>
+        <div class="stat"><div class="v">${fmt$(t.capint)}</div><div class="l">Capitalized interest</div></div>
+        <div class="stat"><div class="v">${fmt$(t.paid)}</div><div class="l">Principal repaid</div></div>
+      </div>
+      <h3>Record a transaction</h3>
+      <div class="grid g3">
+        <div class="field"><label>Date</label><input type="date" id="hd-date-${hi}" value="${today()}"></div>
+        <div class="field"><label>Amount $</label><input type="number" step="0.01" id="hd-amt-${hi}"></div>
+        <div class="field"><label>Type</label>
+          <select id="hd-pur-${hi}">${Object.entries(PURPOSES).map(([k,v])=>`<option value="${k}">Draw — ${v.label}</option>`).join('')}<option value="principal">Principal payment</option></select></div>
+      </div>
+      <div class="field"><label>Note</label><input type="text" id="hd-note-${hi}" placeholder="e.g. bought 120 VDY @ 46.10, order #…"></div>
+      <div class="row"><button class="primary" onclick="addDraw(${hi})">Add transaction</button></div>
+      <div class="scrollx" style="margin-top:.8rem"><table>${
+        h.draws.length||h.payments.length ?
+        '<tr><th>Date</th><th>Type</th><th class="num">Amount</th><th>Note</th><th></th></tr>' +
+        [...h.draws.map((d,di)=>({d,di,kind:'draw'})), ...h.payments.map((p,pi)=>({d:p,di:pi,kind:'pay'}))]
+          .sort((a,b)=>a.d.date.localeCompare(b.d.date))
+          .map(r=> r.kind==='draw'
+            ? `<tr><td>${r.d.date}</td><td><span class="tag ${PURPOSES[r.d.purpose]?.cls||'red'}">${PURPOSES[r.d.purpose]?.label||r.d.purpose}</span></td>
+               <td class="num">${fmt$2(r.d.amount)}</td><td class="faint">${esc(r.d.note)}</td>
+               <td><button class="small danger" onclick="delDraw(${hi},${r.di})">×</button></td></tr>`
+            : `<tr><td>${r.d.date}</td><td><span class="tag green">Principal payment</span></td>
+               <td class="num">−${fmt$2(r.d.amount).replace('−','')}</td><td class="faint">${esc(r.d.note)}</td>
+               <td><button class="small danger" onclick="delHPayRow(${hi},${r.di})">×</button></td></tr>`).join('')
+        : '<tr><td class="empty">No activity on this line yet.</td></tr>'
+      }</table></div>
+    </div>`;
+  }).join('');
+}
+window.setHeloc = (hi,k,v)=>{ S.helocs[hi][k]=(v===0? 0 : (v||null)); touch(); };
+window.setRateMode = (hi,mode)=>{ S.helocs[hi].rateMode = mode; touch(); };
+window.renameHeloc = hi=>{ const n=prompt('New name', S.helocs[hi].name); if(n){ S.helocs[hi].name=n; touch(); } };
+window.delHeloc = hi=>{ if(confirm('Delete this line and all its history?')){ S.helocs.splice(hi,1); touch(); } };
+window.addDraw = hi=>{
+  const date=$(`hd-date-${hi}`).value, amt=+$(`hd-amt-${hi}`).value;
+  if(!date||!amt){ alert('Date and amount required'); return; }
+  const purpose=$(`hd-pur-${hi}`).value, note=$(`hd-note-${hi}`).value;
+  if(purpose==='principal'){
+    S.helocs[hi].payments.push({date, amount:amt, note});
+    touch(); return;
+  }
+  S.helocs[hi].draws.push({date, amount:amt, purpose, note});
+  const drawIdx = S.helocs[hi].draws.length-1;
+  touch();
+  if(purpose==='invest' && confirm('Draw recorded. Log the stock purchase in the investment ledger now?\n\n(The buy will be linked back to this draw\'s note.)')){
+    pendingTxLink = {kind:'draw', helocId:S.helocs[hi].id, drawIdx};
+    $('txDate').value = date; $('txType').value='buy'; txTypeUI(); txDlg.showModal();
+  }
+};
+window.delDraw = (hi,di)=>{ S.helocs[hi].draws.splice(di,1); touch(); };
+window.delHPayRow = (hi,pi)=>{ S.helocs[hi].payments.splice(pi,1); touch(); };
+
+/* ---- rate history (fixed/manual lines) ---- */
+function rateHistoryEditor(h, hi){
+  const hist = [...(h.rateHistory||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  const rows = hist.length
+    ? hist.map((c)=>{ const realIdx = h.rateHistory.indexOf(c);
+        return `<tr><td>${c.date}</td><td class="num">${c.rate.toFixed(2)}%</td>
+        <td><button class="small danger" onclick="delHRate(${hi},${realIdx})">×</button></td></tr>`; }).join('')
+    : '<tr><td class="empty">No rate set. Add the opening rate (and any later changes) so interest is calculated correctly.</td></tr>';
+  return `<details ${hist.length?'':'open'}><summary>Rate history — ${hist.length} change${hist.length===1?'':'s'}</summary>
+    <div class="row" style="margin-bottom:.5rem">
+      <input type="date" id="hr-date-${hi}" value="${today()}" style="max-width:170px">
+      <input type="number" step="0.01" id="hr-rate-${hi}" placeholder="rate %" style="max-width:120px">
+      <button class="primary small" onclick="addHRate(${hi})">Add rate change</button>
+    </div>
+    <table>${rows.length?'<tr><th>Effective date</th><th class="num">Rate</th><th></th></tr>'+rows:''}</table>
+    <p class="faint" style="margin-top:.4rem">Each entry applies from its effective date until the next change. Interest before the first date uses the earliest rate.</p>
+  </details>`;
+}
+window.addHRate = hi=>{
+  const date=$(`hr-date-${hi}`).value, rate=+$(`hr-rate-${hi}`).value;
+  if(!date || $(`hr-rate-${hi}`).value===''){ alert('Date and rate required'); return; }
+  S.helocs[hi].rateHistory = (S.helocs[hi].rateHistory||[]).filter(c=>c.date!==date);
+  S.helocs[hi].rateHistory.push({date, rate});
+  S.helocs[hi].rateHistory.sort((a,b)=>a.date.localeCompare(b.date));
+  touch();
+};
+window.delHRate = (hi,idx)=>{ S.helocs[hi].rateHistory.splice(idx,1); touch(); };
+
+/* ---- shared prime timeline ---- */
+function primePanel(){
+  const anyPrime = S.helocs.some(h=>h.rateMode==='prime');
+  const hist = [...(S.primeHistory||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  const rows = hist.length
+    ? hist.map((c)=>{ const realIdx=S.primeHistory.indexOf(c);
+        return `<tr><td>${c.date}</td><td class="num">${c.prime.toFixed(2)}%</td>
+        <td><button class="small danger" onclick="delPrime(${realIdx})">×</button></td></tr>`; }).join('')
+    : '<tr><td class="empty">No prime rate recorded yet.</td></tr>';
+  const cur = primeAt(Date.now());
+  return `<div class="card sub">
+    <div class="spread"><h3 style="margin:0">Prime rate timeline ${cur!=null?`<span class="tag gold">now ${cur.toFixed(2)}%</span>`:''}</h3>
+      <span class="faint">shared by all prime-linked lines</span></div>
+    <p class="faint" style="margin:.3rem 0 .6rem">Record each change to your lender's prime rate once here; every "prime + delta" line updates automatically. ${anyPrime?'':'<span class="gold">No lines use prime yet — switch a line to "Prime + delta" to use this.</span>'}</p>
+    <div class="row" style="margin-bottom:.5rem">
+      <input type="date" id="pr-date" value="${today()}" style="max-width:170px">
+      <input type="number" step="0.01" id="pr-rate" placeholder="prime %" style="max-width:120px">
+      <button class="primary small" onclick="addPrime()">Add prime change</button>
+    </div>
+    <table>${hist.length?'<tr><th>Effective date</th><th class="num">Prime</th><th></th></tr>':''}${rows}</table>
+  </div>`;
+}
+window.addPrime = ()=>{
+  const date=$('pr-date').value, rate=+$('pr-rate').value;
+  if(!date || $('pr-rate').value===''){ alert('Date and prime rate required'); return; }
+  S.primeHistory = (S.primeHistory||[]).filter(c=>c.date!==date);
+  S.primeHistory.push({date, prime:rate});
+  S.primeHistory.sort((a,b)=>a.date.localeCompare(b.date));
+  touch();
+};
+window.delPrime = idx=>{ S.primeHistory.splice(idx,1); touch(); };
+
+/* =================================================================
+   INVESTMENTS — CRA average-cost ACB, splits, ROC, superficial loss
+   ================================================================= */
+const TXLABEL = {buy:'Buy',sell:'Sell',div:'Dividend',drip:'DRIP',roc:'ROC',phantom:'Phantom dist.',split:'Split'};
+function txSorted(){ return [...S.tx].sort((a,b)=> a.date.localeCompare(b.date) || (a.seq||0)-(b.seq||0)); }
+
+// Walk the ledger to compute per-symbol positions, ACB, realized G/L, income, and warnings.
+// Also emits per-event snapshots (before → after) with a plain-English explanation.
+function computeBook(){
+  const pos = {}; // sym -> {qty, acb, realized, income, roc}
+  const gains = []; // {date,sym,qty,proceeds,acbOut,gain}
+  const slFlags = [];
+  const events = {}; // txId -> {before, after, delta, lines[]}
+  const sorted = txSorted();
+  const snap = p => ({qty:p.qty, acb:p.acb, realized:p.realized, income:p.income, roc:p.roc});
+  for(const t of sorted){
+    const p = pos[t.sym] = pos[t.sym] || {qty:0, acb:0, realized:0, income:0, roc:0};
+    const before = snap(p);
+    const lines = [];
+    switch(t.type){
+      case 'buy':
+        p.qty += t.qty; p.acb += t.qty*t.price + (t.fee||0);
+        lines.push(`Bought ${fmtN(t.qty)} ${t.sym} at ${fmt$2(t.price)}${t.fee?` plus ${fmt$2(t.fee)} commission`:''}.`);
+        lines.push(`Total cost of ${fmt$2(t.qty*t.price+(t.fee||0))} added to the adjusted cost base.`);
+        break;
+      case 'drip':
+      case 'phantom': {
+        const add = t.type==='drip'? t.qty*t.price : (t.amount||0);
+        p.qty += (t.type==='drip'? t.qty : 0);
+        p.acb += add; p.income += add;
+        lines.push(t.type==='drip'
+          ? `Reinvested distribution bought ${fmtN(t.qty)} more ${t.sym} at ${fmt$2(t.price)}.`
+          : `Reinvested (phantom) distribution of ${fmt$2(add)} on ${t.sym}.`);
+        lines.push(`${fmt$2(add)} counts as taxable income now and is added to ACB (so it isn't taxed again at sale).`);
+        break;
+      }
+      case 'div':
+        p.income += t.amount||0;
+        lines.push(`Cash dividend of ${fmt$2(t.amount||0)} from ${t.sym}.`);
+        lines.push(`Counts as income; does not change your units or ACB.`);
+        break;
+      case 'roc':
+        p.roc += t.amount||0;
+        p.acb -= t.amount||0;
+        lines.push(`Return of capital of ${fmt$2(t.amount||0)} from ${t.sym}.`);
+        lines.push(`Not taxed now — instead it reduces your ACB, so a larger gain (or smaller loss) is realized when you sell.`);
+        if(p.acb < 0){ p.realized += -p.acb; gains.push({date:t.date,sym:t.sym,qty:0,proceeds:0,acbOut:0,gain:-p.acb,note:'ROC below zero ACB → deemed gain', txId:t.id}); lines.push(`ACB would have gone negative — the ${fmt$2(-p.acb)} below zero is a deemed capital gain this year.`); p.acb = 0; }
+        break;
+      case 'sell': {
+        if(p.qty<=0){ lines.push(`No units of ${t.sym} on hand — nothing to sell.`); break; }
+        const q = Math.min(t.qty, p.qty);
+        const acbPer = p.acb/p.qty;
+        const acbOut = acbPer*q;
+        const proceeds = q*t.price - (t.fee||0);
+        const g = proceeds - acbOut;
+        p.qty -= q; p.acb -= acbOut; p.realized += g;
+        gains.push({date:t.date,sym:t.sym,qty:q,proceeds,acbOut,gain:g,txId:t.id});
+        lines.push(`Sold ${fmtN(q)} ${t.sym} for ${fmt$2(proceeds)}${t.fee?` (after ${fmt$2(t.fee)} commission)`:''}.`);
+        lines.push(`Cost base removed: ${fmt$2(acbOut)} (at ${fmt$2(acbPer)}/unit, the pooled average).`);
+        lines.push(`Realized ${g>=0?'gain':'loss'} of ${fmt$2(Math.abs(g))}.`);
+        if(g < 0){
+          const d0 = new Date(t.date).getTime();
+          const rebuy = sorted.find(x=> x.sym===t.sym && (x.type==='buy'||x.type==='drip') &&
+            Math.abs(new Date(x.date).getTime()-d0) <= 30*86400000 && x!==t);
+          if(rebuy){ slFlags.push(`${t.date} — sold ${t.sym} at a loss with a ${rebuy.type} on ${rebuy.date}: likely superficial loss (denied; add back to ACB).`);
+            lines.push(`⚠ A ${rebuy.type} of ${t.sym} on ${rebuy.date} is within 30 days — this loss is likely superficial (denied and added to the new ACB).`); }
+        }
+        break;
+      }
+      case 'split': {
+        const r = t.ratio||1;
+        let newQty = p.qty * r;
+        lines.push(`${r>=1?`${fmtN(r)}-for-1 split`:`1-for-${fmtN(1/r)} reverse split`} of ${t.sym}.`);
+        if(t.frac==='round'){ newQty = Math.floor(newQty); lines.push(`Fractional units dropped (rounded down).`); }
+        else if(t.frac==='cil'){
+          const whole = Math.floor(newQty), fracQ = newQty - whole;
+          if(fracQ>0 && p.qty>0){
+            const acbPer = p.acb / newQty;
+            const acbOut = acbPer*fracQ, cil = t.cil||0;
+            p.acb -= acbOut; p.realized += cil - acbOut;
+            gains.push({date:t.date,sym:t.sym,qty:fracQ,proceeds:cil,acbOut,gain:cil-acbOut,note:'cash in lieu',txId:t.id});
+            lines.push(`Fractional ${fmtN(fracQ)} unit paid out as ${fmt$2(cil)} cash in lieu (small ${cil-acbOut>=0?'gain':'loss'} of ${fmt$2(Math.abs(cil-acbOut))}).`);
+          }
+          newQty = whole;
+        } else { lines.push(`Fractional units kept.`); }
+        p.qty = newQty;
+        lines.push(`Units adjusted to ${fmtN(newQty)}; total ACB unchanged, so ACB per unit rescales.`);
+        break;
+      }
+    }
+    const after = snap(p);
+    events[t.id] = {before, after, lines,
+      delta:{qty:after.qty-before.qty, acb:after.acb-before.acb,
+             realized:after.realized-before.realized, income:after.income-before.income, roc:after.roc-before.roc}};
+  }
+  return {pos, gains, slFlags, events};
+}
+function renderInvest(){
+  const {pos, gains, slFlags, events} = computeBook();
+  lastEvents = events;
+  const syms = Object.keys(pos).filter(s=>pos[s].qty>0.000001 || pos[s].realized || pos[s].income);
+  $('holdTable').innerHTML = syms.length ?
+    '<tr><th>Symbol</th><th class="num">Units</th><th class="num">ACB</th><th class="num">ACB / unit</th><th class="num">Income rec\'d</th><th class="num">ROC rec\'d</th><th class="num">Realized G/L</th></tr>'+
+    syms.map(s=>{ const p=pos[s]; return `<tr><td><b>${esc(s)}</b></td><td class="num">${fmtN(p.qty)}</td>
+      <td class="num">${fmt$2(p.acb)}</td><td class="num">${p.qty>0?fmt$2(p.acb/p.qty):'—'}</td>
+      <td class="num">${fmt$2(p.income)}</td><td class="num">${fmt$2(p.roc)}</td>
+      <td class="num ${p.realized>=0?'green':'red'}">${fmt$2(p.realized)}</td></tr>`;}).join('')
+    : '<tr><td class="empty">No holdings yet — add transactions or import a CSV.</td></tr>';
+  const sorted = txSorted();
+  const txRow = (t, withSym) => `<tr>
+      <td><a href="#" onclick="showEvent('${t.id}');return false" style="color:var(--blue)">${t.date}</a></td>
+      <td><span class="tag ${t.type==='sell'?'red':t.type==='buy'?'gold':'blue'}">${TXLABEL[t.type]||t.type}</span></td>
+      ${withSym?`<td>${esc(t.sym)}</td>`:''}<td class="num">${t.qty!=null?fmtN(t.qty):t.ratio?fmtN(t.ratio)+'×':'—'}</td>
+      <td class="num">${t.price!=null?fmt$2(t.price):'—'}</td>
+      <td class="num">${t.amount!=null?fmt$2(t.amount):(t.qty&&t.price)?fmt$2(t.qty*t.price):'—'}</td>
+      <td class="faint">${esc(t.note)}</td>
+      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small danger" onclick="delTx('${t.id}')">×</button></td></tr>`;
+  const headRow = withSym => `<tr><th>Date</th><th>Type</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th></th></tr>`;
+  if(!sorted.length){
+    $('txWrap').innerHTML = '<table><tr><td class="empty">Empty ledger.</td></tr></table>';
+  } else if(txView==='sym'){
+    const bySym = {};
+    sorted.forEach(t=>{ (bySym[t.sym]=bySym[t.sym]||[]).push(t); });
+    $('txWrap').innerHTML = Object.keys(bySym).sort().map(sym=>{
+      const p = pos[sym];
+      return `<h3 style="margin-top:.8rem">${esc(sym)} <span class="faint" style="font-size:.78rem">${p?`${fmtN(p.qty)} units · ACB ${fmt$2(p.acb)}`:''}</span></h3>
+        <table>${headRow(false)}${bySym[sym].map(t=>txRow(t,false)).join('')}</table>`;
+    }).join('');
+  } else {
+    $('txWrap').innerHTML = `<table>${headRow(true)}${sorted.map(t=>txRow(t,true)).join('')}</table>`;
+  }
+  $('slWarn').innerHTML = slFlags.length ? slFlags.map(f=>`<p class="red" style="font-size:.85rem">⚠ ${esc(f)}</p>`).join('') :
+    '<p class="faint">No same-account superficial losses detected.</p>';
+}
+let lastEvents = {};
+$('txvAll').onclick = ()=>{ txView='all'; $('txvAll').classList.add('on'); $('txvSym').classList.remove('on'); renderInvest(); };
+$('txvSym').onclick = ()=>{ txView='sym'; $('txvSym').classList.add('on'); $('txvAll').classList.remove('on'); renderInvest(); };
+// Event drawer: before → change → after, with plain-English explanation.
+window.showEvent = id => {
+  const t = S.tx.find(x=>x.id===id); if(!t) return;
+  const ev = lastEvents[id]; if(!ev) return;
+  const rowsMoved = [
+    ['Units','qty', v=>fmtN(v)],
+    ['Adjusted cost base','acb', fmt$2],
+    ['ACB per unit', '_acbper', fmt$2],
+    ['Realized gain/loss (cumulative)','realized', fmt$2],
+    ['Income received (cumulative)','income', fmt$2],
+    ['Return of capital (cumulative)','roc', fmt$2],
+  ];
+  const val = (snap,key)=> key==='_acbper' ? (snap.qty>0? snap.acb/snap.qty : 0) : snap[key];
+  const body = rowsMoved.map(([label,key,fmt])=>{
+    const b=val(ev.before,key), a=val(ev.after,key), d=a-b;
+    if(Math.abs(d)<0.005 && key!=='_acbper') return '';  // only show what moved
+    if(key==='_acbper' && Math.abs(d)<0.0001) return '';
+    return `<tr><td>${label}</td><td class="num faint">${fmt(b)}</td>
+      <td class="num ${d>0?'green':d<0?'red':''}">${d===0?'—':(d>0?'+':'')+fmt(d)}</td>
+      <td class="num">${fmt(a)}</td></tr>`;
+  }).filter(Boolean).join('');
+  $('evTitle').textContent = `${TXLABEL[t.type]||t.type} — ${t.sym}`;
+  $('evDate').textContent = t.date;
+  $('evExplain').innerHTML = ev.lines.map(l=>`<p style="margin:.15rem 0">${esc(l)}</p>`).join('');
+  $('evTable').innerHTML = body
+    ? '<tr><th>Balance</th><th class="num">Before</th><th class="num">Change</th><th class="num">After</th></tr>'+body
+    : '<tr><td class="empty">No balance change.</td></tr>';
+  $('evNote').innerHTML = t.note ? `<span class="faint">Your note:</span> ${esc(t.note)}` : '';
+  $('eventDialog').showModal();
+};
+$('evClose').onclick = ()=> $('eventDialog').close();
+window.delTx = id => { S.tx = S.tx.filter(t=>t.id!==id); touch(); };
+
+/* --- transaction dialog --- */
+const txDlg = $('txDialog');
+let pendingTxLink = null;   // {kind:'draw',helocId,drawIdx} | {kind:'refund',refundId}
+$('txAddBtn').onclick = ()=>{ $('txDate').value = today(); txTypeUI(); txDlg.showModal(); };
+$('txCancel').onclick = ()=>{ pendingTxLink=null; txDlg.close(); };
+$('txType').onchange = txTypeUI;
+function txTypeUI(){
+  const t = $('txType').value;
+  $('fQty').style.display   = (t==='buy'||t==='sell'||t==='drip') ? '' : 'none';
+  $('fPrice').style.display = (t==='buy'||t==='sell'||t==='drip') ? '' : 'none';
+  $('fFee').style.display   = (t==='buy'||t==='sell') ? '' : 'none';
+  $('fAmt').style.display   = (t==='div'||t==='roc'||t==='phantom') ? '' : 'none';
+  $('fRatio').style.display = t==='split' ? '' : 'none';
+  $('fFrac').style.display  = t==='split' ? '' : 'none';
+  $('fCil').style.display   = (t==='split' && $('txFrac').value==='cil') ? '' : 'none';
+}
+$('txFrac').onchange = txTypeUI;
+$('txSave').onclick = ()=>{
+  const type=$('txType').value, date=$('txDate').value, sym=$('txSym').value.trim().toUpperCase();
+  if(!date||!sym){ alert('Date and symbol required'); return; }
+  const rec = {id:uid(), seq:S.tx.length, type, date, sym, note:$('txNote').value};
+  if(['buy','sell','drip'].includes(type)){
+    rec.qty=+$('txQty').value; rec.price=+$('txPrice').value; rec.fee=+$('txFee').value||0;
+    if(!rec.qty||!rec.price){ alert('Quantity and price required'); return; }
+  }
+  if(['div','roc','phantom'].includes(type)){
+    rec.amount=+$('txAmt').value;
+    if(!rec.amount){ alert('Amount required'); return; }
+  }
+  if(type==='split'){
+    rec.ratio=+$('txRatio').value; rec.frac=$('txFrac').value; rec.cil=+$('txCil').value||0;
+    if(!rec.ratio){ alert('Ratio required'); return; }
+  }
+  // cross-tab links (HELOC draw / refund deployment)
+  if(pendingTxLink){
+    if(pendingTxLink.kind==='draw' && type==='buy'){
+      const h = S.helocs.find(x=>x.id===pendingTxLink.helocId);
+      const d = h && h.draws[pendingTxLink.drawIdx];
+      if(d){ const tag=`BUY ${fmtN(rec.qty)} ${sym} @ ${fmt$2(rec.price)}`;
+        d.note = d.note ? d.note+' · '+tag : tag; }
+    }
+    if(pendingTxLink.kind==='refund'){
+      rec.refundId = pendingTxLink.refundId;
+      const r = S.refunds.find(x=>x.id===pendingTxLink.refundId);
+      if(r) r.linked = {kind:'invest'};
+    }
+    pendingTxLink = null;
+  }
+  S.tx.push(rec); txDlg.close();
+  ['txSym','txQty','txPrice','txAmt','txNote','txRatio'].forEach(i=>$(i).value='');
+  touch();
+};
+txDlg.addEventListener('close', ()=>{ pendingTxLink=null; });
+$('txCsv').onclick = ()=>{
+  const csv='date,type,symbol,qty,price,fee,amount,ratio,note\n'+txSorted().map(t=>
+    [t.date,t.type,t.sym,t.qty??'',t.price??'',t.fee??'',t.amount??'',t.ratio??'',(t.note||'').replace(/,/g,';')].join(',')).join('\n');
+  dl(csv,'sm-transactions.csv');
+};
+
+/* --- CSV import (Wealthsimple auto-map + manual mapping) --- */
+const csvDlg = $('csvDialog');
+let csvRows = null, csvHeads = null;
+$('csvImport').onclick = ()=>{ $('csvFile').value=''; $('csvMap').style.display='none'; $('csvGo').disabled=true; csvDlg.showModal(); };
+$('csvCancel').onclick = ()=> csvDlg.close();
+$('csvFile').onchange = ()=>{
+  const f=$('csvFile').files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    const lines = r.result.split(/\r?\n/).filter(l=>l.trim());
+    csvHeads = parseCsvLine(lines[0]);
+    csvRows = lines.slice(1).map(parseCsvLine);
+    const opts = csvHeads.map((h,i)=>`<option value="${i}">${esc(h)}</option>`).join('');
+    ['cmDate','cmType','cmSym','cmQty','cmPrice','cmAmt'].forEach(id=>$(id).innerHTML='<option value="">—</option>'+opts);
+    // Wealthsimple-ish auto-map
+    const find = re => { const i = csvHeads.findIndex(h=>re.test(h.toLowerCase())); return i>=0?i:''; };
+    $('cmDate').value = find(/date/); $('cmType').value = find(/type|transaction|activity/);
+    $('cmSym').value = find(/symbol|ticker/); $('cmQty').value = find(/quantity|shares|units/);
+    $('cmPrice').value = find(/price/); $('cmAmt').value = find(/amount|net|value/);
+    $('csvMap').style.display=''; $('csvGo').disabled=false;
+    $('csvPreview').textContent = csvRows.length+' rows found. First: '+csvRows[0].slice(0,5).join(' | ');
+  };
+  r.readAsText(f);
+};
+function parseCsvLine(line){
+  const out=[]; let cur='',q=false;
+  for(const ch of line){
+    if(ch==='"'){q=!q;continue;}
+    if(ch===','&&!q){out.push(cur);cur='';continue;}
+    cur+=ch;
+  } out.push(cur); return out.map(s=>s.trim());
+}
+$('csvGo').onclick = ()=>{
+  const gi = id => { const v=$(id).value; return v===''?null:+v; };
+  const [iD,iT,iS,iQ,iP,iA] = ['cmDate','cmType','cmSym','cmQty','cmPrice','cmAmt'].map(gi);
+  if(iD==null||iT==null||iS==null){ alert('Date, Type, and Symbol columns are required'); return; }
+  let ok=0, skip=0;
+  for(const row of csvRows){
+    const rawT=(row[iT]||'').toLowerCase();
+    let type=null;
+    if(/buy|purchase/.test(rawT)) type='buy';
+    else if(/sell/.test(rawT)) type='sell';
+    else if(/drip|reinvest/.test(rawT)) type='drip';
+    else if(/div|distribution/.test(rawT)) type='div';
+    if(!type){ skip++; continue; }
+    const date = normalizeDate(row[iD]); const sym=(row[iS]||'').toUpperCase();
+    if(!date||!sym){ skip++; continue; }
+    const rec={id:uid(),seq:S.tx.length+ok,type,date,sym,note:'CSV import'};
+    if(type==='div'){ rec.amount=Math.abs(parseFloat((row[iA]||'').replace(/[$,]/g,'')))||0; if(!rec.amount){skip++;continue;} }
+    else{
+      rec.qty=Math.abs(parseFloat(row[iQ]))||0; rec.price=Math.abs(parseFloat((row[iP]||'').replace(/[$,]/g,'')))||0; rec.fee=0;
+      if(!rec.qty||!rec.price){ skip++; continue; }
+    }
+    S.tx.push(rec); ok++;
+  }
+  csvDlg.close(); touch();
+  alert(`Imported ${ok} transactions${skip?`, skipped ${skip} unrecognized rows`:''}. Review the ledger, then save your data file.`);
+};
+function normalizeDate(s){
+  if(!s) return null;
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const d=new Date(s); return isNaN(d)?null:d.toISOString().slice(0,10);
+}
+/* =================================================================
+   TAX MODULE — deductible interest per year, refunds, T1213 draft
+   ================================================================= */
+// Estimate interest accrued in a calendar year on deductible balances,
+// walking each line's dated events at its stated rate (daily simple accrual).
+function deductibleInterestForYear(year){
+  let total = 0; const perLine = [];
+  const y0 = new Date(year+'-01-01T00:00:00').getTime();
+  const y1 = new Date((year+1)+'-01-01T00:00:00').getTime();
+  for(const h of S.helocs){
+    migrateHeloc(h);
+    // line has a usable rate anywhere this year?
+    if(helocRateAt(h, y0)==null && helocRateAt(h, y1-1)==null){
+      perLine.push({name:h.name, interest:null, note:'no rate set'}); continue;
+    }
+    const evts = [
+      ...h.draws.map(d=>({t:new Date(d.date).getTime(), amt: PURPOSES[d.purpose]?.deductible ? d.amount : 0, ded:PURPOSES[d.purpose]?.deductible, raw:d.amount})),
+      ...h.payments.map(p=>({t:new Date(p.date).getTime(), amt:-p.amount, pay:true, raw:-p.amount}))
+    ].sort((a,b)=>a.t-b.t);
+    let dedBal=0, totBal=0, lastT=y0, interest=0;
+    // Accrue from lastT→to, splitting at any rate-change boundary so each
+    // sub-span uses the rate in effect during it.
+    const accrue = to => {
+      let from = Math.max(lastT, y0), end = Math.min(to, y1);
+      if(end<=from || dedBal<=0) return;
+      const cuts = [from, ...rateBoundaries(h, from, end), end];
+      for(let i=0;i<cuts.length-1;i++){
+        const a=cuts[i], b=cuts[i+1];
+        const rate = helocRateAt(h, a);
+        if(rate!=null) interest += dedBal * (rate/100) * (b-a)/(365*86400000);
+      }
+    };
+    for(const e of evts){
+      if(e.t>=y1) break;
+      accrue(e.t); lastT=Math.max(e.t,lastT);
+      if(e.pay){
+        const share = totBal>0 ? dedBal/totBal : 0;
+        dedBal = Math.max(dedBal + e.amt*share, 0); totBal = Math.max(totBal + e.amt, 0);
+      } else {
+        dedBal += e.amt; totBal += e.raw;
+      }
+    }
+    accrue(y1);
+    perLine.push({name:h.name, interest});
+    total += interest;
+  }
+  return {total, perLine};
+}
+$('taxCalc').onclick = ()=>{
+  if($('taxMTR').value===''){
+    alert('Enter your marginal tax rate.\n\nThis is your combined federal + provincial rate on the next dollar of income — it varies by province and income level, so there is no safe default. Your latest notice of assessment or a marginal-rate table for your province will give it.');
+    $('taxMTR').focus(); return;
+  }
+  S.taxMTR = +$('taxMTR').value;
+  const year = +$('taxYear').value || new Date().getFullYear();
+  let interest, srcNote;
+  if(S.mode==='light'){
+    const row = S.lightYears.find(r=>r.year===year);
+    interest = row ? row.interest : 0;
+    srcNote = row ? 'from your annual summary' : 'no annual summary for this year';
+  } else {
+    const r = deductibleInterestForYear(year);
+    interest = r.total; srcNote = 'estimated from ledger (daily accrual at each line\'s stated rate) — reconcile against actual bank statements before filing';
+  }
+  const refund = S.taxMTR!=null ? interest * S.taxMTR/100 : null;
+  $('taxStats').innerHTML = `
+    <div class="stat"><div class="v gold">${fmt$2(interest)}</div><div class="l">Deductible interest ${year}</div></div>
+    <div class="stat"><div class="v">${S.taxMTR!=null?S.taxMTR+'%':'—'}</div><div class="l">Marginal rate</div></div>
+    <div class="stat"><div class="v green">${refund!=null?fmt$2(refund):'—'}</div><div class="l">Est. refund (Line 22100)</div></div>
+    <div class="stat" style="grid-column:span 2"><div class="l" style="text-transform:none;font-size:.78rem">${srcNote}</div></div>`;
+  touch();
+};
+let rdAutoLink = true;
+function rdSyncFields(){
+  const to = $('rdTo').value;
+  const canLink = (to==='Mortgage prepayment' || to==='HELOC paydown' || to==='More investments');
+  $('rdLinkWrap').style.display = canLink ? '' : 'none';
+  $('rdDateWrap').style.display = canLink ? '' : 'none';
+  $('rdLinkOn').classList.toggle('on', rdAutoLink);
+  $('rdLinkOff').classList.toggle('on', !rdAutoLink);
+  const heloc = to==='HELOC paydown' && rdAutoLink;
+  $('rdHelocWrap').style.display = heloc ? '' : 'none';
+  if(heloc){
+    $('rdHeloc').innerHTML = S.helocs.length
+      ? S.helocs.map((h,i)=>`<option value="${i}">${esc(h.name)}</option>`).join('')
+      : '<option value="">— no HELOC lines —</option>';
+  }
+  $('rdLinkHint').innerHTML = canLink
+    ? (rdAutoLink
+        ? `<span class="green">${to==='More investments'
+            ? 'The Add Transaction dialog will open so the purchase lands in the investment ledger, linked to this refund.'
+            : `A matching ${to==='Mortgage prepayment'?'prepayment on the Mortgage tab':'principal payment on the chosen HELOC line'} will be created automatically, dated below.`}</span>`
+        : 'Logged here only — no entry added elsewhere.')
+    : '';
+}
+$('rdTo').onchange = rdSyncFields;
+$('rdLinkOn').onclick = ()=>{ rdAutoLink=true; rdSyncFields(); };
+$('rdLinkOff').onclick = ()=>{ rdAutoLink=false; rdSyncFields(); };
+
+$('rdAdd').onclick = ()=>{
+  const y=+$('rdYear').value, a=+$('rdAmt').value;
+  if(!y||!a){ alert('Year and amount required'); return; }
+  const to=$('rdTo').value, link=rdAutoLink;
+  const canLink=(to==='Mortgage prepayment'||to==='HELOC paydown'||to==='More investments');
+  const date = $('rdDate').value || (y+'-12-31');
+  const rid = uid();
+  const rec = {id:rid, year:y, amount:a, to, note:$('rdNote').value};
+
+  if(canLink && link && to==='More investments'){
+    pendingTxLink = {kind:'refund', refundId:rid};
+    $('txDate').value = date; $('txType').value='buy'; txTypeUI();
+    setTimeout(()=>txDlg.showModal(), 50);
+  }
+  if(canLink && link && to!=='More investments'){
+    if(to==='Mortgage prepayment'){
+      S.mortgage.prepayments.push({date, amount:a, source:'Tax refund',
+        note:(rec.note?rec.note+' · ':'')+'auto from '+y+' refund', refundId:rid});
+      rec.linked = {kind:'prepay'};
+    } else { // HELOC paydown
+      const hi = +$('rdHeloc').value;
+      if(S.helocs[hi]){
+        S.helocs[hi].payments.push({date, amount:a,
+          note:(rec.note?rec.note+' · ':'')+'auto from '+y+' refund', refundId:rid});
+        rec.linked = {kind:'helocPay', helocId:S.helocs[hi].id};
+      } else {
+        alert('No HELOC line selected — logged the refund without a linked entry.');
+      }
+    }
+  }
+  S.refunds.push(rec);
+  S.refunds.sort((x,z)=>x.year-z.year); $('rdNote').value=''; touch();
+};
+function renderRefunds(){
+  $('rdTable').innerHTML = S.refunds.length ?
+    '<tr><th>Year</th><th class="num">Refund</th><th>Deployed to</th><th>Linked</th><th>Note</th><th></th></tr>'+
+    S.refunds.map((r,i)=>`<tr><td class="num">${r.year}</td><td class="num green">${fmt$2(r.amount)}</td>
+      <td><span class="tag ${r.to==='Spent / other'?'red':'gold'}">${esc(r.to)}</span></td>
+      <td>${r.linked?`<span class="tag green">${r.linked.kind==='prepay'?'prepayment':r.linked.kind==='invest'?'investment buy':'HELOC payment'}</span>`:'<span class="faint">—</span>'}</td>
+      <td class="faint">${esc(r.note)}</td><td><button class="small danger" onclick="delRefund(${i})">×</button></td></tr>`).join('')
+    : '<tr><td class="empty">No refunds recorded.</td></tr>';
+}
+window.delRefund = i => {
+  const r = S.refunds[i];
+  if(r && r.linked){
+    const kindLabel = r.linked.kind==='prepay'?'mortgage prepayment':r.linked.kind==='invest'?'investment purchase':'HELOC payment';
+    if(confirm('This refund created a linked '+kindLabel+'. Delete that entry too?')){
+      if(r.linked.kind==='prepay'){
+        S.mortgage.prepayments = S.mortgage.prepayments.filter(p=>p.refundId!==r.id);
+      } else if(r.linked.kind==='invest'){
+        S.tx = S.tx.filter(t=>t.refundId!==r.id);
+      } else {
+        const h = S.helocs.find(x=>x.id===r.linked.helocId);
+        if(h) h.payments = h.payments.filter(p=>p.refundId!==r.id);
+      }
+    }
+  }
+  S.refunds.splice(i,1); touch();
+};
+
+$('t1213Btn').onclick = ()=>{
+  if(S.taxMTR==null){
+    alert('Set your marginal tax rate first — the T1213 worksheet depends on it.');
+    $('taxMTR').focus(); return;
+  }
+  const year = (+$('taxYear').value || new Date().getFullYear());
+  let interest;
+  if(S.mode==='light'){ interest = S.lightYears.find(r=>r.year===year-1)?.interest || 0; }
+  else { interest = deductibleInterestForYear(year-1).total; }
+  const projected = interest; // conservative: project this year = last year
+  const out = `T1213 DRAFT WORKSHEET — Request to Reduce Tax Deductions at Source
+Tax year: ${year}
+Generated: ${today()} by Smith Manoeuvre Tracker (personal tool)
+
+*** DRAFT ONLY — NOT A CRA FORM, NOT TAX ADVICE ***
+Transcribe onto the official CRA Form T1213 and have a tax
+professional review before submitting. The CRA may ask for
+supporting documents (loan statements, investment statements).
+
+Section: Carrying charges / interest expense (deduction claimed)
+  Interest on money borrowed to earn investment income
+  (readvanceable HELOC — Smith Manoeuvre)
+  Prior-year deductible interest (${year-1}): ${fmt$2(interest)}
+  Projected ${year} deductible interest:      ${fmt$2(projected)}
+  Basis: interest on draws used exclusively to purchase
+  income-producing non-registered investments, plus interest
+  capitalized on those same borrowings.
+
+Supporting documents to attach:
+  [ ] HELOC statements showing interest charged (12 months)
+  [ ] Brokerage statements showing purchases from borrowed funds
+  [ ] This tracker's audit package (transaction index)
+
+Reminder: approval reduces withholding — it does not confirm
+deductibility. Keep the paper trail airtight.`;
+  $('t1213Out').textContent = out; $('t1213Out').style.display='';
+};
+
+/* =================================================================
+   AUDIT PACKAGE
+   ================================================================= */
+function buildAudit(){
+  const {pos, gains} = computeBook();
+  const years = new Set();
+  S.helocs.forEach(h=>h.draws.forEach(d=>years.add(+d.date.slice(0,4))));
+  S.lightYears.forEach(r=>years.add(r.year));
+  const yr = [...years].sort();
+  let html = `<h3>Yearly deductible interest</h3><table><tr><th>Year</th><th class="num">Deductible interest</th><th>Source</th></tr>`;
+  if(S.mode==='light'){
+    html += S.lightYears.map(r=>`<tr><td>${r.year}</td><td class="num">${fmt$2(r.interest)}</td><td class="faint">annual summary (bank statements)</td></tr>`).join('');
+  } else {
+    html += yr.map(y=>{ const r=deductibleInterestForYear(y);
+      return `<tr><td>${y}</td><td class="num">${fmt$2(r.total)}</td><td class="faint">ledger estimate — reconcile to statements</td></tr>`;}).join('');
+  }
+  html += '</table>';
+  html += `<h3 style="margin-top:1rem">Credit line draw ledger</h3>`;
+  for(const h of S.helocs){
+    html += `<p><b>${esc(h.name)}</b> — ${h.rateMode==='prime'?`prime + ${h.delta??'—'}% (effective ${helocRateNow(h)!=null?helocRateNow(h).toFixed(2)+'%':'—'})`:`rate ${helocRateNow(h)!=null?helocRateNow(h).toFixed(2)+'%':'—'}`}</p><table><tr><th>Date</th><th>Purpose</th><th class="num">Amount</th><th>Note</th></tr>`+
+      [...h.draws].sort((a,b)=>a.date.localeCompare(b.date)).map(d=>
+        `<tr><td>${d.date}</td><td>${PURPOSES[d.purpose]?.label||d.purpose}</td><td class="num">${fmt$2(d.amount)}</td><td class="faint">${esc(d.note)}</td></tr>`).join('')+'</table>';
+  }
+  if(S.tx.length){
+    html += `<h3 style="margin-top:1rem">Holdings & ACB</h3><table><tr><th>Symbol</th><th class="num">Units</th><th class="num">ACB</th><th class="num">Income</th><th class="num">ROC</th><th class="num">Realized G/L</th></tr>`+
+      Object.entries(pos).map(([s,p])=>`<tr><td>${esc(s)}</td><td class="num">${fmtN(p.qty)}</td><td class="num">${fmt$2(p.acb)}</td>
+        <td class="num">${fmt$2(p.income)}</td><td class="num">${fmt$2(p.roc)}</td><td class="num">${fmt$2(p.realized)}</td></tr>`).join('')+'</table>';
+    if(gains.length){
+      html += `<h3 style="margin-top:1rem">Dispositions (Schedule 3 support)</h3><table><tr><th>Date</th><th>Symbol</th><th class="num">Units</th><th class="num">Proceeds</th><th class="num">ACB</th><th class="num">Gain/Loss</th></tr>`+
+        gains.map(g=>`<tr><td>${g.date}</td><td>${esc(g.sym)}</td><td class="num">${fmtN(g.qty)}</td>
+          <td class="num">${fmt$2(g.proceeds)}</td><td class="num">${fmt$2(g.acbOut)}</td>
+          <td class="num ${g.gain>=0?'green':'red'}">${fmt$2(g.gain)}</td></tr>`).join('')+'</table>';
+    }
+  }
+  if(S.refunds.length){
+    html += `<h3 style="margin-top:1rem">Refund deployment</h3><table><tr><th>Year</th><th class="num">Amount</th><th>Deployed to</th><th>Note</th></tr>`+
+      S.refunds.map(r=>`<tr><td>${r.year}</td><td class="num">${fmt$2(r.amount)}</td><td>${esc(r.to)}</td><td class="faint">${esc(r.note)}</td></tr>`).join('')+'</table>';
+  }
+  html += `<p class="faint" style="margin-top:1rem">Prepared ${today()}. This index summarizes the owner's records; the underlying bank and brokerage statements are the primary evidence. Educational tool — not professional advice.</p>`;
+  $('auditBody').innerHTML = html || '<div class="empty">Nothing to report yet.</div>';
+}
+$('auditPrint').onclick = ()=>{
+  buildAudit();
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('print-target'));
+  $('view-audit').classList.add('print-target');
+  window.print();
+};
+$('auditJson').onclick = ()=> dl(serialize(), 'smith-manoeuvre-full-export.json');
+/* =================================================================
+   SIMULATOR — do-nothing vs debt swap vs leveraged (+margin overlay)
+   ================================================================= */
+function runSim(){
+  const P0=+$('sMort').value, mR=+$('sMRate').value, amort=+$('sAmort').value,
+        hR=+$('sHRate').value, ret=+$('sRet').value/100, yld=+$('sYield').value/100,
+        mtr=+$('sMTR').value/100, divTax=+$('sDivTax').value/100,
+        extra=+$('sExtra').value, yrs=+$('sYears').value,
+        lump=+$('sLump').value, levMo=+$('sLevMo').value,
+        mgOn=$('sMgOn').value==='1', mgR=+$('sMgRate').value/100, mgPct=+$('sMgPct').value/100;
+  const iM = periodicRate(mR,12,$('sComp').value);   // monthly periodic rate on chosen compounding
+  const pay = P0*iM/(1-Math.pow(1+iM,-amort*12));
+  const hRm = hR/100/12, gM = Math.pow(1+ret,1/12)-1, yM = yld/12;
+  const priceG = Math.max(gM - yM, 0);             // price growth = total − yield
+  const N = yrs*12;
+
+  // scenario state factory
+  const mk = () => ({mort:P0, heloc:0, margin:0, port:0, dedInt:0, series:[]});
+  const dn = mk(), ds = mk(), lv = mk(), lvm = mgOn? mk() : null;
+  if(lv){ lv.heloc += lump; lv.port += lump; }
+  if(lvm){ lvm.heloc += lump; lvm.port += lump; }
+
+  const stepMortgage = s => {
+    if(s.mort<=0) return 0;
+    const int = s.mort*iM;
+    const prin = Math.min(pay-int, s.mort);
+    s.mort -= prin;
+    return prin;                                   // principal freed this month
+  };
+  // one SM month: prepays reborrowed & invested; HELOC interest capitalized until payoff, then cash-paid
+  const smMonth = (s, extraDraw) => {
+    // portfolio grows & pays dividends
+    const div = s.port*yM;
+    s.port *= (1+priceG);
+    // mortgage payment: principal freed → reborrow → invest
+    let freed = stepMortgage(s);
+    // extra cashflow + dividends prepay mortgage, then reborrow & invest
+    let prepay = extra + div;
+    if(s.mort>0){
+      const applied = Math.min(prepay, s.mort);
+      s.mort -= applied; freed += applied;
+    } else {
+      // mortgage done: cashflow + dividends pay down HELOC/margin interest first, then principal
+      const hint = s.heloc*hRm + (s.margin||0)*mgR/12;
+      let cash = prepay - hint;
+      s.dedInt += hint;
+      if(cash>0){ const pd = Math.min(cash, s.heloc); s.heloc-=pd; cash-=pd; s.port += cash; }
+      else { s.heloc += -cash; s.dedInt += 0; } // shortfall capitalized
+      freed = 0; prepay = 0;
+    }
+    if(freed>0){ s.heloc += freed; s.port += freed; }
+    if(extraDraw>0){ s.heloc += extraDraw; s.port += extraDraw; }
+    // capitalize HELOC interest while mortgage active
+    if(s.mort>0){
+      const hint = s.heloc*hRm; s.heloc += hint; s.dedInt += hint;
+      if(s.margin!=null && mgOn===true && s===lvm){ /* handled below */ }
+    }
+    // margin overlay: top up to target % of portfolio; interest capitalized to margin
+    if(s===lvm){
+      const mint = s.margin*mgR/12; s.margin += mint; s.dedInt += mint;
+      const target = s.port*mgPct;
+      if(s.margin < target){ const add = target - s.margin; s.margin += add; s.port += add; }
+    }
+    // dividend tax drag (cash divs were redeployed pre-tax above; charge tax from portfolio)
+    s.port -= div*divTax;
+  };
+  const dnMonth = s => {
+    const div = s.port*yM;
+    s.port *= (1+priceG);
+    stepMortgage(s);
+    s.port += extra + div*(1-divTax);              // invest extra + after-tax divs
+  };
+
+  for(let mth=1; mth<=N; mth++){
+    dnMonth(dn); smMonth(ds,0); smMonth(lv,levMo); if(lvm) smMonth(lvm,levMo);
+    // annual tax refund on deductible interest → prepay/reborrow/invest (SM scenarios)
+    if(mth%12===0){
+      for(const s of [ds,lv,lvm]){ if(!s) continue;
+        const refund = s.dedInt*mtr; s.dedInt = 0;
+        if(s.mort>0){ const ap=Math.min(refund,s.mort); s.mort-=ap; s.heloc+=ap; s.port+=ap; }
+        else { const pd=Math.min(refund,s.heloc); s.heloc-=pd; s.port+= (refund-pd); }
+      }
+    }
+    const nw = s => s.port - s.heloc - (s.margin||0) - s.mort;
+    dn.series.push(nw(dn)); ds.series.push(nw(ds)); lv.series.push(nw(lv)); if(lvm) lvm.series.push(nw(lvm));
+  }
+  return {dn, ds, lv, lvm, N};
+}
+
+const SIM_REQUIRED = [
+  ['sMort','Mortgage balance'], ['sMRate','Mortgage rate'], ['sComp','Mortgage compounding'],
+  ['sAmort','Amortization'], ['sHRate','HELOC rate'], ['sRet','Expected total return'],
+  ['sYield','Dividend yield'], ['sMTR','Marginal tax rate'], ['sDivTax','Dividend tax rate'],
+  ['sExtra','Extra monthly cashflow'], ['sYears','Horizon'],
+  ['sLump','Leveraged initial lump'], ['sLevMo','Leveraged extra draw'],
+];
+$('qcRun').onclick = ()=>{
+  const R = parseFloat($('qcRate').value), T = parseFloat($('qcMTR').value);
+  if(isNaN(R) || isNaN(T)){
+    alert('Enter both the borrowing rate and your marginal tax rate.');
+    (isNaN(R)?$('qcRate'):$('qcMTR')).focus(); return;
+  }
+  const afterTax = R*(1-T/100);            // break-even market return
+  const amt = parseFloat($('qcAmt').value);
+  const hasAmt = !isNaN(amt) && amt>0;
+  const annualInterest = hasAmt ? amt*R/100 : null;
+  const afterTaxCost = hasAmt ? amt*afterTax/100 : null;
+  // sweep: break-even, then a spread of market returns above it
+  const sweep = [afterTax, 6, 9, 12, 15].filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>a-b);
+  const rows = sweep.map(mr=>{
+    const isBE = Math.abs(mr-afterTax)<1e-9;
+    const gain = hasAmt ? amt*mr/100 : null;
+    const profit = hasAmt ? gain - afterTaxCost : null;
+    return `<tr>
+      <td>${isBE?'<span class="tag gold">break-even</span> ':''}<span class="num">${mr.toFixed(2)}%</span></td>
+      <td class="num">${gain!=null?fmt$(gain):'—'}</td>
+      <td class="num ${profit==null?'':profit>0?'green':profit<0?'red':''}">${profit!=null?(profit>0?'+':'')+fmt$(profit):'—'}</td>
+    </tr>`;
+  }).join('');
+  $('qcOut').innerHTML = `
+    <div class="statgrid" style="margin-bottom:.8rem">
+      <div class="stat"><div class="v gold">${afterTax.toFixed(2)}%</div><div class="l">Break-even return</div></div>
+      <div class="stat"><div class="v">${afterTax.toFixed(2)}%</div><div class="l">After-tax cost of borrowing</div></div>
+      ${hasAmt?`<div class="stat"><div class="v">${fmt$(annualInterest)}</div><div class="l">Annual interest</div></div>
+      <div class="stat"><div class="v">${fmt$(afterTaxCost)}</div><div class="l">After-tax cost / yr</div></div>`:''}
+    </div>
+    <p style="margin-bottom:.5rem">Borrowing at <b>${R}%</b> and deducting at <b>${T}%</b>, your after-tax cost is <b class="gold">${afterTax.toFixed(2)}%</b>. Beat that with your investment return and you come out ahead.</p>
+    <div class="scrollx"><table>
+      <tr><th>Market return</th><th class="num">Portfolio gain${hasAmt?'':' (enter amount)'}</th><th class="num">Annual profit vs. cost</th></tr>
+      ${rows}
+    </table></div>
+    <p class="faint" style="margin-top:.6rem">This is the single-year, pre-investment-tax gut check — it taxes the borrowing cost but not the dividends or gains. It also assumes the full deduction applies at your marginal rate. For the real answer with dividend tax, mortgage paydown, and a do-nothing comparison over time, use the full projection below. Educational only — not tax advice.</p>`;
+};
+$('simRun').onclick = ()=>{
+  const missing = SIM_REQUIRED.filter(([id])=>$(id).value==='');
+  if($('sMgOn').value==='1'){
+    if($('sMgRate').value==='') missing.push(['sMgRate','Margin rate']);
+    if($('sMgPct').value==='') missing.push(['sMgPct','Target margin %']);
+  }
+  if(missing.length){
+    alert('Fill in every assumption before running:\n\n• '+missing.map(x=>x[1]).join('\n• ')+
+      '\n\nThese are deliberately blank — the result depends entirely on your inputs, and a pre-filled return or tax rate would just be a guess dressed up as an answer. Enter 0 where something does not apply.');
+    $(missing[0][0]).focus(); return;
+  }
+  const r = runSim();
+  const last = s => s.series[s.series.length-1];
+  drawLines($('simChart'), [
+    {label:'Do nothing', color:'#8A99AB', data:r.dn.series},
+    {label:'Debt swap (pure SM)', color:'#E4B658', data:r.ds.series},
+    {label:'Leveraged SM', color:'#5FBF8F', data:r.lv.series},
+    ...(r.lvm? [{label:'Leveraged + margin', color:'#D96A5F', data:r.lvm.series}]:[])
+  ]);
+  const rows = [
+    ['Do nothing', r.dn], ['Debt swap (pure SM)', r.ds], ['Leveraged SM', r.lv],
+    ...(r.lvm? [['Leveraged + margin', r.lvm]]:[])
+  ];
+  $('simTable').innerHTML = '<tr><th>Strategy</th><th class="num">Portfolio</th><th class="num">Inv. debt</th><th class="num">Mortgage left</th><th class="num">Net position</th><th class="num">vs. do nothing</th></tr>'+
+    rows.map(([n,s])=>{ const adv = last(s)-last(r.dn);
+      return `<tr><td>${n}</td><td class="num">${fmt$(s.port)}</td>
+        <td class="num">${fmt$(s.heloc+(s.margin||0))}</td><td class="num">${fmt$(s.mort)}</td>
+        <td class="num">${fmt$(last(s))}</td>
+        <td class="num ${adv>=0?'green':'red'}">${adv===0?'—':(adv>0?'+':'')+fmt$(adv)}</td></tr>`;}).join('');
+  let verdict = '';
+  const dsAdv = last(r.ds)-last(r.dn), lvAdv = last(r.lv)-last(r.dn);
+  verdict += `<p>Pure debt swap ends <b class="${dsAdv>=0?'green':'red'}">${fmt$(Math.abs(dsAdv))} ${dsAdv>=0?'ahead of':'behind'}</b> doing nothing on these assumptions. `;
+  verdict += `Adding leverage ${lvAdv>dsAdv?'improves':'worsens'} that by ${fmt$(Math.abs(lvAdv-dsAdv))}.</p>`;
+  if(r.lvm){
+    const mgAdv = last(r.lvm)-last(r.lv);
+    verdict += `<p><b>Margin overlay verdict:</b> vs. leveraged SM alone it ${
+      Math.abs(mgAdv)<1000 ? 'makes <b>essentially no difference</b>' :
+      mgAdv>0 ? `<b class="green">helps by ${fmt$(mgAdv)}</b>` : `<b class="red">hurts by ${fmt$(-mgAdv)}</b>`
+    } at horizon — and that's before margin-call risk, which this model cannot price. A drawdown that forces selling can erase the entire advantage. If the edge above is thin, the honest answer is: not worth it.</p>`;
+  }
+  verdict += `<p class="faint">Smooth-return model: real markets are volatile and leverage cuts both ways. If after-tax HELOC cost exceeds the mortgage rate, debt swap alone can lose to doing nothing — that's a feature of the math, not a bug in the tool.</p>`;
+  $('simVerdict').innerHTML = verdict;
+};
+
+/* =================================================================
+   CANVAS CHARTS (no libraries)
+   ================================================================= */
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function drawLines(cv, series){
+  const dpr = window.devicePixelRatio||1;
+  const W = cv.clientWidth, H = cv.clientHeight||300;
+  cv.width=W*dpr; cv.height=H*dpr;
+  const c = cv.getContext('2d'); c.scale(dpr,dpr);
+  c.clearRect(0,0,W,H);
+  const all = series.flatMap(s=>s.data);
+  if(!all.length){ c.fillStyle=cssVar('--faint'); c.font='13px system-ui'; c.fillText('No data yet',20,30); return; }
+  let min=Math.min(...all,0), max=Math.max(...all);
+  if(min===max){max=min+1;}
+  const pad={l:70,r:14,t:14,b:26};
+  const X=i=>pad.l+(W-pad.l-pad.r)*i/(series[0].data.length-1||1);
+  const Y=v=>pad.t+(H-pad.t-pad.b)*(1-(v-min)/(max-min));
+  // gridlines
+  c.strokeStyle=cssVar('--line'); c.fillStyle=cssVar('--faint'); c.font='11px ui-monospace,monospace'; c.lineWidth=1;
+  for(let g=0; g<=4; g++){
+    const v=min+(max-min)*g/4, y=Y(v);
+    c.beginPath(); c.moveTo(pad.l,y); c.lineTo(W-pad.r,y); c.stroke();
+    c.fillText(fmt$(v), 6, y+4);
+  }
+  // zero line
+  if(min<0&&max>0){ c.strokeStyle=cssVar('--muted'); c.beginPath(); c.moveTo(pad.l,Y(0)); c.lineTo(W-pad.r,Y(0)); c.stroke(); }
+  // series
+  series.forEach(s=>{
+    c.strokeStyle=s.color; c.lineWidth=2; c.beginPath();
+    s.data.forEach((v,i)=>{ const x=X(i),y=Y(v); i?c.lineTo(x,y):c.moveTo(x,y); });
+    c.stroke();
+  });
+  // legend
+  let lx=pad.l+6;
+  series.forEach(s=>{
+    c.fillStyle=s.color; c.fillRect(lx,H-16,10,10);
+    c.fillStyle=cssVar('--text'); c.font='11px system-ui'; c.fillText(s.label,lx+14,H-7);
+    lx += 14 + c.measureText(s.label).width + 16;
+  });
+}
+
+/* =================================================================
+   DASHBOARD
+   ================================================================= */
+function renderDash(){
+  // deductible vs non-deductible debt today
+  let dd=0, nd=0, portVal=null, dashMortStat=null;
+  if(S.mode==='light' && S.lightYears.length){
+    const r = S.lightYears[S.lightYears.length-1];
+    dd = r.heloc; nd = r.mort; portVal = r.port;
+  } else {
+    S.helocs.forEach(h=>{ const t=helocTotals(h); dd+=t.dedBal; nd+=Math.max(t.bal-t.dedBal,0); });
+    const rows = buildSchedule(); const st = rows? mortgageStats(rows):null;
+    if(st){ nd += st.balNow; dashMortStat = st; }
+    const {pos} = computeBook();
+    portVal = Object.values(pos).reduce((s,p)=>s+p.acb,0) || null; // book value proxy
+  }
+  const tot = dd+nd;
+  const pct = tot>0 ? dd/tot*100 : 0;
+  $('convpct').textContent = pct.toFixed(1)+'%';
+  document.querySelector('#convbar .dd').style.width = pct+'%';
+  document.querySelector('#convbar .nd').style.width = (100-pct)+'%';
+  $('lgnd').textContent = fmt$(nd); $('lgdd').textContent = fmt$(dd);
+  // stats
+  const yearNow = new Date().getFullYear();
+  const intYtd = S.mode==='light'
+    ? (S.lightYears.find(r=>r.year===yearNow)?.interest ?? null)
+    : deductibleInterestForYear(yearNow).total;
+  const refundEst = (intYtd!=null && S.taxMTR!=null) ? intYtd*S.taxMTR/100 : null;
+  $('dashStats').innerHTML = `
+    <div class="stat"><div class="v gold">${fmt$(dd)}</div><div class="l">Deductible debt</div></div>
+    <div class="stat"><div class="v red">${fmt$(nd)}</div><div class="l">Non-deductible debt</div></div>
+    <div class="stat"><div class="v">${portVal!=null?fmt$(portVal):'—'}</div><div class="l">${S.mode==='light'?'Portfolio value':'Portfolio (book value)'}</div></div>
+    <div class="stat"><div class="v">${intYtd!=null?fmt$2(intYtd):'—'}</div><div class="l">Deductible interest ${yearNow}</div></div>
+    <div class="stat"><div class="v green">${refundEst!=null?fmt$2(refundEst):'—'}</div><div class="l">${S.taxMTR!=null?`Est. refund @ ${S.taxMTR}%`:'Est. refund — set tax rate'}</div></div>
+    ${dashMortStat && dashMortStat.meta.paidOff && dashMortStat.payoffDelta ? `<div class="stat"><div class="v ${dashMortStat.payoffDelta.months>=0?'green':'red'}">${dashMortStat.payoffDelta.months===0?'on time':(dashMortStat.payoffDelta.months>0?fmtMonths(dashMortStat.payoffDelta.months)+' sooner':fmtMonths(-dashMortStat.payoffDelta.months)+' later')}</div><div class="l">Mortgage-free vs. original term</div></div>`:''}`;
+  // dashboard chart from light years or ledger yearly balances
+  let labels=[], port=[], debt=[];
+  if(S.lightYears.length){
+    S.lightYears.forEach(r=>{ labels.push(r.year); port.push(r.port); debt.push(-(r.mort+r.heloc)); });
+  }
+  drawLines($('dashChart'), labels.length ? [
+    {label:'Portfolio', color:'#5FBF8F', data:port},
+    {label:'Total debt (−)', color:'#D96A5F', data:debt}
+  ] : []);
+}
+
+/* =================================================================
+   HYDRATE & RENDER-ALL & INIT
+   ================================================================= */
+function hydrateForms(){
+  const M=S.mortgage;
+  $('mPrincipal').value=M.principal??''; $('mRate').value=M.rate??'';
+  if(!M.paymentChanges) M.paymentChanges=[];
+  if(!M.freqChanges) M.freqChanges=[];
+  $('mComp').value=M.compounding||'';
+  $('mPayMode').value=M.paymentMode||'auto';
+  $('mCustomPay').value=M.customPayment??'';
+  $('mCustomWrap').style.display=(M.paymentMode==='custom')?'':'none';
+  $('mAmort').value=M.amortYears??''; $('mStart').value=M.start??''; $('mFreq').value=M.freq||'12';
+  $('taxMTR').value=S.taxMTR??''; $('taxYear').value=new Date().getFullYear();
+  $('lyYear').value=new Date().getFullYear(); $('rdYear').value=new Date().getFullYear();
+  $('rdDate').value=today();
+  if(typeof rdSyncFields==='function') rdSyncFields();
+  setMode(S.mode||'full');
+  applyTheme(S.theme||'dark');
+}
+function renderAll(){
+  renderMortgage(); renderHelocs(); renderInvest(); renderRefunds(); renderLight(); renderDash(); buildAudit();
+}
+window.addEventListener('resize', ()=>{ renderDash(); });
+hydrateForms(); renderAll();
+</script>
+</body>
+</html>
