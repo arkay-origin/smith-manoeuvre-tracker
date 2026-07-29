@@ -82,6 +82,16 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 
 ---
 
+## Support
+
+This tool is free and always will be — no ads, no accounts, no tracking, no paywall.
+
+If it saved you time, you can [buy me a coffee](https://buymeacoffee.com/a50443536g). Entirely optional.
+
+Note: the donation link is a plain hyperlink. No third-party widget or script is embedded, so nothing loads from outside this page and nothing about your visit is reported anywhere.
+
+---
+
 ## License
 
 Licensed under the **GNU General Public License v3.0** — see [LICENSE](LICENSE).
