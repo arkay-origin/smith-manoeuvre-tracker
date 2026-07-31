@@ -204,7 +204,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div id="filebar" class="noprint">
     <button id="btnSave" class="primary">Save data file</button>
     <button id="btnLoad">Load data file</button>
-    <button id="btnAutosave">Enable auto-save</button>
+    <button id="btnAutosave">Auto-save: off</button>
     <button id="btnWipe" class="danger">Clear all data</button>
     <button id="btnTheme">Light mode</button>
   </div>
@@ -269,16 +269,54 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   </div>
 
   <div class="card"><h2>Net position</h2><canvas id="dashChart" class="chart" height="300"></canvas>
-  <p class="faint" style="margin-top:.4rem">Portfolio value vs. total debt (mortgage + investment HELOC), from your ledger history.</p></div>
+  <p class="faint" style="margin-top:.4rem" id="dashChartNote"></p></div>
 </section>
 
 <!-- ========== MORTGAGE ========== -->
 <section class="view" id="view-mortgage">
   <div class="pagehead"><h1>Mortgage</h1><div class="acts"></div></div>
-  <p class="faint">Canadian fixed mortgages compound semi-annually; variable-rate products often compound monthly or align with the payment cycle, depending on lender. Set yours in the Payment section — check your mortgage documents if unsure.</p>
+
+  <!-- Overview: always visible -->
+  <div class="card">
+    <div class="spread"><h2>Overview</h2>
+      <div class="acts"><button class="small" id="mConfigBtn">Configuration</button></div>
+    </div>
+    <p class="faint" id="mPayHint" style="margin:.2rem 0 .8rem"></p>
+    <div class="statgrid" id="mStats"></div>
+    <div id="mCompare"></div>
+  </div>
+
+  <!-- Prepayments: the recurring action, kept near the top -->
+  <div class="card">
+    <div class="spread"><h2>Prepayments</h2></div>
+    <p class="faint">The engine of the strategy: prepay → re-borrow → invest. Lump sums go here.</p>
+    <div class="grid g3">
+      <div class="field"><label>Date</label><input type="date" id="ppDate"></div>
+      <div class="field"><label>Amount $</label><input type="number" id="ppAmt" step="0.01"></div>
+      <div class="field"><label>Source</label>
+        <select id="ppSrc"><option>Cashflow</option><option>Dividends</option><option>Tax refund</option><option>Sale proceeds</option><option>Other</option></select></div>
+    </div>
+    <div class="field"><label>Note</label><input type="text" id="ppNote" placeholder="why did I do this? (future-you will thank you)"></div>
+    <button class="primary" id="ppAdd">Add prepayment</button>
+    <div class="scrollx" style="margin-top:.8rem"><table id="ppTable"></table></div>
+  </div>
 
   <div class="card">
-    <h2>Loan basics</h2>
+    <div class="spread"><h2>Amortization schedule</h2>
+      <div class="acts">
+        <div class="modewrap"><button id="schedYearly" class="on">Yearly</button><button id="schedFull">Full</button></div>
+        <button class="small" id="mCsv">Export CSV</button>
+      </div>
+    </div>
+    <div class="scrollx"><table id="mSched"></table></div>
+  </div>
+
+  <!-- Configuration: set once, collapsed after setup -->
+  <details id="mortgageConfig">
+    <summary>Mortgage configuration — loan basics, payment, rate changes</summary>
+    <p class="faint">Canadian fixed mortgages compound semi-annually; variable-rate products often compound monthly or align with the payment cycle, depending on lender. Check your mortgage documents if unsure.</p>
+
+    <h3>Loan basics</h3>
     <div class="grid g3">
       <div class="field"><label>Original principal $</label><input type="number" id="mPrincipal" step="0.01"></div>
       <div class="field"><label>Annual rate %</label><input type="number" id="mRate" step="0.001"></div>
@@ -292,13 +330,9 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
         </select></div>
       <div class="field"><label>&nbsp;</label><button class="primary" id="mApply" style="width:100%">Apply / recalc</button></div>
     </div>
-    <div class="statgrid" id="mStats"></div>
-    <div id="mCompare"></div>
-  </div>
 
-  <div class="card">
-    <h2>Payment</h2>
-    <p class="faint" id="mPayHint" style="margin:.2rem 0 .8rem"></p>
+    <hr>
+    <h3>Payment</h3>
     <div class="grid g3">
       <div class="field"><label>Interest compounding <span class="red">*</span></label>
         <select id="mComp">
@@ -322,7 +356,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 
     <hr>
     <h3>Payment amount changes</h3>
-    <p class="faint">Bumped your payment partway through? Record it here. Each entry applies from its date until the next one, and overrides both the calculated payment and the custom amount above.</p>
+    <p class="faint">Bumped your payment partway through? Each entry applies from its date until the next one, and overrides both the calculated payment and the custom amount above.</p>
     <div class="grid g3">
       <div class="field"><label>Effective date</label><input type="date" id="pcDate"></div>
       <div class="field"><label>New payment $</label><input type="number" id="pcAmt" step="0.01"></div>
@@ -332,7 +366,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 
     <hr>
     <h3>Payment frequency changes</h3>
-    <p class="faint">Switched from monthly to accelerated bi-weekly (or similar) mid-mortgage? Record it here. The schedule re-amortizes from that date at the new frequency, so the history before it stays accurate.</p>
+    <p class="faint">Switched from monthly to accelerated bi-weekly (or similar) mid-mortgage? The schedule re-amortizes from that date at the new frequency, so the history before it stays accurate.</p>
     <div class="grid g3">
       <div class="field"><label>Effective date</label><input type="date" id="fcDate"></div>
       <div class="field"><label>New frequency</label>
@@ -344,10 +378,9 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
       <div class="field"><label>&nbsp;</label><button id="fcAdd" style="width:100%">Add frequency change</button></div>
     </div>
     <table id="fcTable"></table>
-  </div>
 
-  <div class="card">
-    <div class="spread"><h2>Rate changes &amp; renewals</h2></div>
+    <hr>
+    <h3>Rate changes &amp; renewals</h3>
     <div class="grid g3">
       <div class="field"><label>Effective date</label><input type="date" id="rcDate"></div>
       <div class="field"><label>New rate %</label><input type="number" id="rcRate" step="0.001"></div>
@@ -365,28 +398,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     </div>
     <p class="faint">Set compounding here if it changes at renewal — e.g. switching from a monthly-compounded variable to a semi-annual fixed.</p>
     <table id="rcTable"></table>
-  </div>
-  <div class="card">
-    <div class="spread"><h2>Prepayments</h2></div>
-    <div class="grid g3">
-      <div class="field"><label>Date</label><input type="date" id="ppDate"></div>
-      <div class="field"><label>Amount $</label><input type="number" id="ppAmt" step="0.01"></div>
-      <div class="field"><label>Source</label>
-        <select id="ppSrc"><option>Cashflow</option><option>Dividends</option><option>Tax refund</option><option>Sale proceeds</option><option>Other</option></select></div>
-    </div>
-    <div class="field"><label>Note</label><input type="text" id="ppNote" placeholder="why did I do this? (future-you will thank you)"></div>
-    <button class="primary" id="ppAdd">Add prepayment</button>
-    <div class="scrollx" style="margin-top:.8rem"><table id="ppTable"></table></div>
-  </div>
-  <div class="card">
-    <div class="spread"><h2>Amortization schedule</h2>
-      <div class="acts">
-        <div class="modewrap"><button id="schedYearly" class="on">Yearly</button><button id="schedFull">Full</button></div>
-        <button class="small" id="mCsv">Export CSV</button>
-      </div>
-    </div>
-    <div class="scrollx"><table id="mSched"></table></div>
-  </div>
+  </details>
 </section>
 
 <!-- ========== HELOC ========== -->
@@ -607,6 +619,7 @@ const BLANK = () => ({
   lightYears: [],                     // annual summaries
   taxMTR: null,
   theme:'dark',
+  autoSave:false,          // explicit opt-in; never inferred from having a file open
   primeHistory: [],                   // [{date,prime}] shared timeline for prime-linked HELOCs
 });
 let S = BLANK();
@@ -656,7 +669,8 @@ async function loadFile(){
       const [h] = await showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}]});
       fileHandle = h;
       const f = await h.getFile(); ingest(await f.text());
-      setSaveState('Loaded & linked · auto-save available'); return;
+      await reconcileAutoSaveOnLoad();
+      return;
     }
   }catch(e){ if(e.name==='AbortError') return; console.warn(e); }
   const inp = document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
@@ -673,7 +687,7 @@ function ingest(text){
 }
 let autoTimer = null;
 function autoSaveMaybe(){
-  if(!fileHandle) return;
+  if(!S.autoSave || !fileHandle) return;
   clearTimeout(autoTimer);
   autoTimer = setTimeout(async ()=>{
     try{ const w = await fileHandle.createWritable(); await w.write(serialize()); await w.close();
@@ -682,10 +696,37 @@ function autoSaveMaybe(){
   }, 1200);
 }
 function setSaveState(t){ $('savestate').textContent = t; }
+function updateAutosaveBtn(){
+  const on = !!S.autoSave && !!fileHandle;
+  $('btnAutosave').textContent = on ? 'Auto-save: ON' : 'Auto-save: off';
+  $('btnAutosave').classList.toggle('primary', on);
+}
+// A file the user opens may already carry autoSave:true. Only honour it if we
+// already hold write permission — otherwise silently switch it off rather than
+// firing an unexpected browser permission prompt they never asked for.
+async function reconcileAutoSaveOnLoad(){
+  if(!S.autoSave){ setSaveState('Loaded · auto-save off'); updateAutosaveBtn(); return; }
+  try{
+    if(fileHandle && fileHandle.queryPermission){
+      const st = await fileHandle.queryPermission({mode:'readwrite'});
+      if(st === 'granted'){ setSaveState('Loaded · auto-save ON'); updateAutosaveBtn(); return; }
+    }
+  }catch(e){ /* fall through */ }
+  S.autoSave = false;
+  setSaveState('Loaded · auto-save off (press to enable)');
+  updateAutosaveBtn();
+}
 
 $('btnSave').onclick = saveFile;
 $('btnLoad').onclick = loadFile;
 $('btnAutosave').onclick = async ()=>{
+  if(S.autoSave){                       // turning it OFF — always allowed, no prompts
+    S.autoSave = false;
+    clearTimeout(autoTimer);
+    setSaveState('Auto-save off · use Save data file');
+    updateAutosaveBtn();
+    return;
+  }
   if(!window.showSaveFilePicker){
     alert('Auto-save needs the File System Access API, which this browser does not expose.\n\n'
       + '• Chrome / Edge: supported.\n'
@@ -693,12 +734,18 @@ $('btnAutosave').onclick = async ()=>{
       + '• Firefox / Safari / most mobile browsers: not supported.\n\n'
       + 'Nothing is lost either way: "Save data file" downloads your JSON, and "Load data file" reads it back. Auto-save only removes the manual step.');
     return; }
-  await saveFile();
-  if(fileHandle) alert('Auto-save is on: this tab will write changes to the linked file automatically.');
+  await saveFile();                      // links a file if one isn't linked yet
+  if(fileHandle){
+    S.autoSave = true;
+    setSaveState('Auto-save ON · ' + new Date().toLocaleTimeString());
+    updateAutosaveBtn();
+    autoSaveMaybe();                     // persist the preference itself
+  }
 };
 $('btnWipe').onclick = ()=>{
   if(confirm('Erase ALL data in this tab? Your saved JSON file (if any) is not deleted.')){
-    S = BLANK(); fileHandle = null; hydrateForms(); renderAll(); setSaveState('Cleared — no file linked');
+    S = BLANK(); fileHandle = null; hydrateForms(); renderAll();
+    setSaveState('Cleared — no file linked'); updateAutosaveBtn();
   }
 };
 window.addEventListener('beforeunload', e => { if(dirty){ e.preventDefault(); e.returnValue=''; } });
@@ -962,6 +1009,12 @@ function mortgageStats(rows){
 
 function renderMortgage(){
   const M = S.mortgage;
+  // First run: leave configuration open until the mortgage is actually set up.
+  const cfg = $('mortgageConfig');
+  if(cfg && !cfg.dataset.touched){
+    const ready = M.principal && M.rate && M.amortYears && M.start && M.compounding;
+    cfg.open = !ready;
+  }
   $('mComp').value = M.compounding || '';
   $('mComp').classList.toggle('needs-pick', !M.compounding);
   $('mPayMode').value = M.paymentMode || 'auto';
@@ -1090,6 +1143,13 @@ window.delPP = i => { S.mortgage.prepayments.splice(i,1); touch(); };
 window.delPC = i => { S.mortgage.paymentChanges.splice(i,1); touch(); };
 window.delFC = i => { S.mortgage.freqChanges.splice(i,1); touch(); };
 
+$('mortgageConfig').addEventListener('toggle', function(){ this.dataset.touched = '1'; });
+$('mConfigBtn').onclick = ()=>{
+  const d = $('mortgageConfig');
+  d.dataset.touched = '1';
+  d.open = true;
+  d.scrollIntoView({behavior:'smooth', block:'start'});
+};
 $('fcAdd').onclick = ()=>{
   const d=$('fcDate').value, f=$('fcFreq').value;
   if(!d){ alert('Effective date required'); return; }
@@ -1300,6 +1360,7 @@ function renderHelocs(){
       </div>
       <div class="field"><label>Note</label><input type="text" id="hd-note-${hi}" placeholder="e.g. bought 120 VDY @ 46.10, order #…"></div>
       <div class="row"><button class="primary" onclick="addDraw(${hi})">Add transaction</button></div>
+      <p class="faint" style="margin-top:.4rem"><span class="green">Recording an <b>Investment</b> draw opens the Add Transaction dialog</span> so the purchase lands in the investment ledger and is linked back to this draw's note. Press Cancel there if you'd rather log the buy later.</p>
       <div class="scrollx" style="margin-top:.8rem"><table>${
         h.draws.length||h.payments.length ?
         '<tr><th>Date</th><th>Type</th><th class="num">Amount</th><th>Note</th><th></th></tr>' +
@@ -1332,7 +1393,9 @@ window.addDraw = hi=>{
   S.helocs[hi].draws.push({date, amount:amt, purpose, note});
   const drawIdx = S.helocs[hi].draws.length-1;
   touch();
-  if(purpose==='invest' && confirm('Draw recorded. Log the stock purchase in the investment ledger now?\n\n(The buy will be linked back to this draw\'s note.)')){
+  if(purpose==='invest'){
+    // Open the buy dialog directly — it has its own Cancel, so a confirm() first
+    // would just be two prompts for one decision.
     pendingTxLink = {kind:'draw', helocId:S.helocs[hi].id, drawIdx};
     $('txDate').value = date; $('txType').value='buy'; txTypeUI(); txDlg.showModal();
   }
@@ -2190,15 +2253,91 @@ function renderDash(){
     <div class="stat"><div class="v">${intYtd!=null?fmt$2(intYtd):'—'}</div><div class="l">Deductible interest ${yearNow}</div></div>
     <div class="stat"><div class="v green">${refundEst!=null?fmt$2(refundEst):'—'}</div><div class="l">${S.taxMTR!=null?`Est. refund @ ${S.taxMTR}%`:'Est. refund — set tax rate'}</div></div>
     ${dashMortStat && dashMortStat.meta.paidOff && dashMortStat.payoffDelta ? `<div class="stat"><div class="v ${dashMortStat.payoffDelta.months>=0?'green':'red'}">${dashMortStat.payoffDelta.months===0?'on time':(dashMortStat.payoffDelta.months>0?fmtMonths(dashMortStat.payoffDelta.months)+' sooner':fmtMonths(-dashMortStat.payoffDelta.months)+' later')}</div><div class="l">Mortgage-free vs. original term</div></div>`:''}`;
-  // dashboard chart from light years or ledger yearly balances
+  // dashboard chart — annual summaries in Light mode, replayed ledger in Full mode
   let labels=[], port=[], debt=[];
-  if(S.lightYears.length){
+  if(S.mode==='light' && S.lightYears.length){
     S.lightYears.forEach(r=>{ labels.push(r.year); port.push(r.port); debt.push(-(r.mort+r.heloc)); });
+  } else if(S.mode!=='light'){
+    const h = buildHistorySeries();
+    labels = h.labels; port = h.port; debt = h.debt;
   }
   drawLines($('dashChart'), labels.length ? [
-    {label:'Portfolio', color:'#5FBF8F', data:port},
+    {label: S.mode==='light' ? 'Portfolio value' : 'Portfolio (book value)', color:'#5FBF8F', data:port},
     {label:'Total debt (−)', color:'#D96A5F', data:debt}
   ] : []);
+  $('dashChartNote').textContent = labels.length
+    ? (S.mode==='light'
+        ? 'Portfolio value vs. total debt, from your annual summaries.'
+        : 'Year-end portfolio book value (ACB) vs. total debt (mortgage + HELOC), replayed from your ledger.')
+    : (S.mode==='light'
+        ? 'Add annual summaries above to plot your position over time.'
+        : 'Add mortgage details, HELOC draws, or investment transactions to plot your position over time.');
+}
+
+// Replay every dated event to produce year-end snapshots of book value and debt.
+// Used for the Full-mode dashboard chart so it isn't dependent on annual summaries.
+function buildHistorySeries(){
+  const out = {labels:[], port:[], debt:[]};
+  // collect the span of years we have any data for
+  const dates = [];
+  if(S.mortgage.start) dates.push(S.mortgage.start);
+  S.mortgage.prepayments.forEach(p=>dates.push(p.date));
+  S.helocs.forEach(h=>{ h.draws.forEach(d=>dates.push(d.date)); h.payments.forEach(p=>dates.push(p.date)); });
+  S.tx.forEach(t=>dates.push(t.date));
+  if(!dates.length) return out;
+  const firstYear = +dates.sort()[0].slice(0,4);
+  const thisYear  = new Date().getFullYear();
+  if(firstYear > thisYear) return out;
+
+  const rows = buildSchedule();            // may be null if the mortgage isn't set up
+  const sortedTx = txSorted();
+
+  for(let y=firstYear; y<=thisYear; y++){
+    const cut = y + '-12-31';
+    // mortgage balance at year end
+    let mort = 0;
+    if(rows){
+      mort = S.mortgage.principal || 0;
+      for(const r of rows){ if(r.date > cut) break; mort = r.bal; }
+    }
+    // HELOC balances at year end
+    let heloc = 0;
+    S.helocs.forEach(h=>{
+      let bal = 0;
+      h.draws.forEach(d=>{ if(d.date <= cut) bal += d.amount; });
+      h.payments.forEach(p=>{ if(p.date <= cut) bal -= p.amount; });
+      heloc += Math.max(bal, 0);
+    });
+    // portfolio book value (ACB) at year end — replay the ledger to that date
+    let book = 0;
+    if(sortedTx.length){
+      const pos = {};
+      for(const t of sortedTx){
+        if(t.date > cut) break;
+        const pp = pos[t.sym] = pos[t.sym] || {qty:0, acb:0};
+        switch(t.type){
+          case 'buy':  pp.qty += t.qty; pp.acb += t.qty*t.price + (t.fee||0); break;
+          case 'drip': pp.qty += t.qty; pp.acb += t.qty*t.price; break;
+          case 'phantom': pp.acb += (t.amount||0); break;
+          case 'roc':  pp.acb = Math.max(pp.acb - (t.amount||0), 0); break;
+          case 'sell': {
+            if(pp.qty<=0) break;
+            const q = Math.min(t.qty, pp.qty);
+            pp.acb -= (pp.acb/pp.qty)*q; pp.qty -= q; break;
+          }
+          case 'split': {
+            const r = t.ratio||1; let nq = pp.qty*r;
+            if(t.frac==='round') nq = Math.floor(nq);
+            pp.qty = nq; break;                       // total ACB unchanged
+          }
+        }
+      }
+      book = Object.values(pos).reduce((a,pp)=>a+pp.acb, 0);
+    }
+    if(mort===0 && heloc===0 && book===0) continue;   // skip empty leading years
+    out.labels.push(y); out.port.push(book); out.debt.push(-(mort+heloc));
+  }
+  return out;
 }
 
 /* =================================================================
@@ -2220,6 +2359,7 @@ function hydrateForms(){
   if(typeof rdSyncFields==='function') rdSyncFields();
   setMode(S.mode||'full');
   applyTheme(S.theme||'dark');
+  updateAutosaveBtn();
 }
 function renderAll(){
   renderMortgage(); renderHelocs(); renderInvest(); renderRefunds(); renderLight(); renderDash(); buildAudit();
