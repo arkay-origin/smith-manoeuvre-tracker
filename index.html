@@ -284,42 +284,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 <section class="view" id="view-mortgage">
   <div class="pagehead"><h1>Mortgage</h1><div class="acts"></div></div>
 
-  <!-- Overview: always visible -->
-  <div class="card">
-    <div class="spread"><h2>Overview</h2>
-      <div class="acts"><button class="small" id="mConfigBtn">Configuration</button></div>
-    </div>
-    <p class="faint" id="mPayHint" style="margin:.2rem 0 .8rem"></p>
-    <div class="statgrid" id="mStats"></div>
-    <div id="mCompare"></div>
-  </div>
-
-  <!-- Prepayments: the recurring action, kept near the top -->
-  <div class="card">
-    <div class="spread"><h2>Prepayments</h2></div>
-    <p class="faint">The engine of the strategy: prepay → re-borrow → invest. Lump sums go here.</p>
-    <div class="grid g3">
-      <div class="field"><label>Date</label><input type="date" id="ppDate"></div>
-      <div class="field"><label>Amount $</label><input type="number" id="ppAmt" step="0.01"></div>
-      <div class="field"><label>Source</label>
-        <select id="ppSrc"><option>Cashflow</option><option>Dividends</option><option>Tax refund</option><option>Sale proceeds</option><option>Other</option></select></div>
-    </div>
-    <div class="field"><label>Note</label><input type="text" id="ppNote" placeholder="why did I do this? (future-you will thank you)"></div>
-    <button class="primary" id="ppAdd">Add prepayment</button>
-    <div class="scrollx" style="margin-top:.8rem"><table id="ppTable"></table></div>
-  </div>
-
-  <div class="card">
-    <div class="spread"><h2>Amortization schedule</h2>
-      <div class="acts">
-        <div class="modewrap"><button id="schedYearly" class="on">Yearly</button><button id="schedFull">Full</button></div>
-        <button class="small" id="mCsv">Export CSV</button>
-      </div>
-    </div>
-    <div class="scrollx"><table id="mSched"></table></div>
-  </div>
-
-  <!-- Configuration: set once, collapsed after setup -->
+  <!-- Configuration first: collapsed once the mortgage is set up -->
   <details id="mortgageConfig">
     <summary>Mortgage configuration — loan basics, payment, rate changes</summary>
     <p class="faint">Canadian fixed mortgages compound semi-annually; variable-rate products often compound monthly or align with the payment cycle, depending on lender. Check your mortgage documents if unsure.</p>
@@ -336,7 +301,6 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
           <option value="26a">Accelerated bi-weekly</option><option value="52">Weekly</option>
           <option value="52a">Accelerated weekly</option>
         </select></div>
-      <div class="field"><label>&nbsp;</label><button class="primary" id="mApply" style="width:100%">Apply / recalc</button></div>
     </div>
 
     <hr>
@@ -406,7 +370,48 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     </div>
     <p class="faint">Set compounding here if it changes at renewal — e.g. switching from a monthly-compounded variable to a semi-annual fixed.</p>
     <table id="rcTable"></table>
+
+    <hr>
+    <div class="spread">
+      <span class="faint">Changes take effect when you apply. The full schedule shows every event.</span>
+      <button class="primary" id="mApply">Apply / recalc</button>
+    </div>
   </details>
+
+  <!-- Overview -->
+  <div class="card">
+    <div class="spread"><h2>Overview</h2>
+    </div>
+    <p class="faint" id="mPayHint" style="margin:.2rem 0 .8rem"></p>
+    <div class="statgrid" id="mStats"></div>
+    <div id="mCompare"></div>
+  </div>
+
+  <!-- Prepayments: the recurring action -->
+  <div class="card">
+    <div class="spread"><h2>Prepayments</h2></div>
+    <p class="faint">The engine of the strategy: prepay → re-borrow → invest. Lump sums go here.</p>
+    <div class="grid g3">
+      <div class="field"><label>Date</label><input type="date" id="ppDate"></div>
+      <div class="field"><label>Amount $</label><input type="number" id="ppAmt" step="0.01"></div>
+      <div class="field"><label>Source</label>
+        <select id="ppSrc"><option>Cashflow</option><option>Dividends</option><option>Tax refund</option><option>Sale proceeds</option><option>Other</option></select></div>
+    </div>
+    <div class="field"><label>Note</label><input type="text" id="ppNote" placeholder="why did I do this? (future-you will thank you)"></div>
+    <button class="primary" id="ppAdd">Add prepayment</button>
+    <div class="scrollx" style="margin-top:.8rem"><table id="ppTable"></table></div>
+  </div>
+
+  <!-- Schedule last: it can grow very long -->
+  <div class="card">
+    <div class="spread"><h2>Amortization schedule</h2>
+      <div class="acts">
+        <div class="modewrap"><button id="schedYearly" class="on">Yearly</button><button id="schedFull">Full</button></div>
+        <button class="small" id="mCsv">Export CSV</button>
+      </div>
+    </div>
+    <div class="scrollx"><table id="mSched"></table></div>
+  </div>
 </section>
 
 <!-- ========== HELOC ========== -->
@@ -690,6 +695,7 @@ function ingest(text){
   try{ const d = JSON.parse(text);
     if(typeof d!=='object'||!d.version) throw new Error('not a tracker file');
     S = Object.assign(BLANK(), d);
+    const cfgEl = $('mortgageConfig'); if(cfgEl) delete cfgEl.dataset.touched;
     hydrateForms(); renderAll(); setSaveState('Data loaded');
   }catch(e){ alert('Could not read that file: '+e.message); }
 }
@@ -1021,7 +1027,7 @@ function renderMortgage(){
   const cfg = $('mortgageConfig');
   if(cfg && !cfg.dataset.touched){
     const ready = M.principal && M.rate && M.amortYears && M.start && M.compounding;
-    cfg.open = !ready;
+    setConfigOpen(!ready);
   }
   $('mComp').value = M.compounding || '';
   $('mComp').classList.toggle('needs-pick', !M.compounding);
@@ -1151,13 +1157,20 @@ window.delPP = i => { S.mortgage.prepayments.splice(i,1); touch(); };
 window.delPC = i => { S.mortgage.paymentChanges.splice(i,1); touch(); };
 window.delFC = i => { S.mortgage.freqChanges.splice(i,1); touch(); };
 
-$('mortgageConfig').addEventListener('toggle', function(){ this.dataset.touched = '1'; });
-$('mConfigBtn').onclick = ()=>{
+// Only a USER toggle should stop the auto open/collapse behaviour. Setting
+// .open in code also fires this event, so guard it with a flag — otherwise the
+// first render marks it touched and it never auto-collapses again.
+let cfgProgrammatic = false;
+$('mortgageConfig').addEventListener('toggle', function(){
+  if(cfgProgrammatic) return;
+  this.dataset.touched = '1';
+});
+function setConfigOpen(open){
   const d = $('mortgageConfig');
-  d.dataset.touched = '1';
-  d.open = true;
-  d.scrollIntoView({behavior:'smooth', block:'start'});
-};
+  if(d.open === open) return;
+  cfgProgrammatic = true; d.open = open;
+  setTimeout(()=>{ cfgProgrammatic = false; }, 0);
+}
 $('fcAdd').onclick = ()=>{
   const d=$('fcDate').value, f=$('fcFreq').value;
   if(!d){ alert('Effective date required'); return; }
@@ -1169,25 +1182,35 @@ $('fcAdd').onclick = ()=>{
 $('schedYearly').onclick = ()=>{ schedView='yearly'; $('schedYearly').classList.add('on'); $('schedFull').classList.remove('on'); renderMortgage(); };
 $('schedFull').onclick  = ()=>{ schedView='full';  $('schedFull').classList.add('on'); $('schedYearly').classList.remove('on'); renderMortgage(); };
 
-$('mPayMode').onchange = ()=>{
-  S.mortgage.paymentMode = $('mPayMode').value;
+// Every mortgage configuration field commits as you change it — the same
+// behaviour as the HELOC tab and the change-tables below. Nothing is held in a
+// staging buffer, so typing a value and navigating away can't silently lose it.
+function commitMortgageField(){
+  S.mortgage.principal    = +$('mPrincipal').value || null;
+  S.mortgage.rate         = +$('mRate').value || null;
+  S.mortgage.amortYears   = +$('mAmort').value || null;
+  S.mortgage.start        = $('mStart').value || null;
+  S.mortgage.freq         = $('mFreq').value;
+  S.mortgage.compounding  = $('mComp').value || null;
+  S.mortgage.paymentMode  = $('mPayMode').value;
+  S.mortgage.customPayment= $('mCustomPay').value==='' ? null : +$('mCustomPay').value;
   $('mCustomWrap').style.display = S.mortgage.paymentMode==='custom' ? '' : 'none';
   touch();
-};
+}
+['mPrincipal','mRate','mAmort','mStart','mFreq','mComp','mPayMode','mCustomPay']
+  .forEach(id=>{ $(id).addEventListener('change', commitMortgageField); });
+
+// Apply / recalc: everything is already saved, so this confirms setup is complete,
+// collapses the configuration, and returns focus to the overview.
 $('mApply').onclick = ()=>{
+  commitMortgageField();
   if(!$('mComp').value){
     alert('Please select your interest compounding basis.\n\nSemi-annual is standard for Canadian fixed-rate mortgages; variable-rate products often compound monthly or align with the payment cycle. Your mortgage documents will state it.');
     $('mComp').focus(); return;
   }
-  S.mortgage.principal = +$('mPrincipal').value || null;
-  S.mortgage.rate = +$('mRate').value || null;
-  S.mortgage.amortYears = +$('mAmort').value || null;
-  S.mortgage.start = $('mStart').value || null;
-  S.mortgage.freq = $('mFreq').value;
-  S.mortgage.compounding = $('mComp').value;
-  S.mortgage.paymentMode = $('mPayMode').value;
-  S.mortgage.customPayment = $('mCustomPay').value==='' ? null : +$('mCustomPay').value;
-  touch();
+  $('mortgageConfig').dataset.touched = '1';
+  setConfigOpen(false);
+  $('view-mortgage').scrollIntoView({behavior:'smooth', block:'start'});
 };
 $('pcAdd').onclick = ()=>{
   const d=$('pcDate').value, a=+$('pcAmt').value;
