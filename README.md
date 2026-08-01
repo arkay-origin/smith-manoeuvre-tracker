@@ -10,7 +10,9 @@ A free, single-file tracker for the Smith Manoeuvre and Canadian leveraged-inves
 
 Everything runs in your browser. There is no server, no account, no cloud, no cookies, no analytics, no tracking of any kind.
 
-Your data is saved to a JSON file **on your own machine**. You load it when you start and save when you finish — on Chrome and Edge it can auto-save to the linked file so you don't have to think about it. Nothing you type is ever transmitted anywhere.
+Your data is saved to a JSON file **on your own machine**. You load it when you start and save when you finish. Nothing you type is ever transmitted anywhere.
+
+Auto-save is optional and off by default. Turn it on and the tool writes changes straight to your linked file — it stays off until you explicitly enable it, and the setting is remembered in your data file. It needs the File System Access API, so it works in Chrome and Edge, in Brave once you enable the flag at `brave://flags`, and not in Firefox or Safari. Everywhere else, Save and Load work exactly the same, just manually.
 
 You can also just download `index.html` and run it offline. It works exactly the same.
 
@@ -28,6 +30,7 @@ You can also just download `index.html` and run it offline. It works exactly the
 - Prepayments tagged by source, with notes
 - Payoff date, time remaining, and time saved vs. the original amortization
 - Yearly summary or full per-payment schedule, CSV export
+- Metrics and prepayments up front; the set-once configuration tucked into a collapsible section
 
 **HELOC**
 - Multiple credit lines for multi-lender setups
@@ -57,7 +60,7 @@ You can also just download `index.html` and run it offline. It works exactly the
 
 **Dashboard and audit**
 - Debt conversion percentage, non-deductible → deductible
-- Light mode (annual statement totals) or Full mode (per-transaction)
+- Light mode (annual statement totals) or Full mode (per-transaction), with the net-position chart plotted in either
 - Printable audit package, Schedule 3 disposition support, full JSON export
 - Record-keeping guide covering capitalized interest, ROC, mixed use, and superficial loss
 - Light and dark themes
