@@ -894,6 +894,7 @@ function compLabel(c){ return COMPOUNDING[c] || 'Semi-annual'; }
 // term; a custom payment stays put and the interest/principal split moves.
 // opts.ignoreCustom builds the lender-calculated baseline for comparison.
 // opts.baseFreqOnly ignores freqChanges (for the "original terms" baseline).
+const ORDER_TIE = {prepay:0, rate:1, freq:2};
 function buildSchedule(opts){
   const M = S.mortgage;
   const ignoreCustom = opts && opts.ignoreCustom;
@@ -901,6 +902,7 @@ function buildSchedule(opts){
   if(!M.principal || !M.rate || !M.amortYears || !M.start || !M.compounding) return null;
   const rcs = [...M.rateChanges].sort((a,b)=>a.date.localeCompare(b.date));
   const pps = [...M.prepayments].sort((a,b)=>a.date.localeCompare(b.date));
+  const fcs = baseFreqOnly ? [] : [...(M.freqChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
 
   let bal = M.principal, rate = M.rate, comp = M.compounding;
   let freq = baseFreqOnly ? M.freq : freqAt(M, M.start);
@@ -910,10 +912,12 @@ function buildSchedule(opts){
   let remYears = M.amortYears;
   let pay = stdPayment(bal, rate, remYears, freq, comp);
 
-  const rows = []; let rcIdx=0, ppIdx=0;
+  const rows = []; let rcIdx=0, ppIdx=0, fcIdx=0;
   let negAmCount=0, unpaidInterest=0, blewUp=false, payCount=0;
   const maxPayments = Math.round(M.amortYears * 52 * 3);   // hard cap
   let cursor = M.start;
+  // Skip any frequency changes already reflected in the opening frequency.
+  while(fcIdx<fcs.length && fcs[fcIdx].date <= M.start) fcIdx++;
 
   const recalc = ()=>{ m = paymentsPerYear(freq); i = periodicRate(rate,m,comp);
                        pay = stdPayment(bal, rate, Math.max(remYears,1/m), freq, comp); };
@@ -923,29 +927,33 @@ function buildSchedule(opts){
     const pd = addPeriods(cursor, 1, m);
     const pdStr = pd.toISOString().slice(0,10);
 
-    // apply rate changes effective on/before this payment date
-    while(rcIdx<rcs.length && rcs[rcIdx].date <= pdStr){
-      rate = rcs[rcIdx].rate;
-      if(rcs[rcIdx].compounding) comp = rcs[rcIdx].compounding;
-      recalc();
-      rows.push({date:rcs[rcIdx].date, type:'rate', rate, comp, bal,
-                 note:'Rate → '+rate+'%'+(rcs[rcIdx].compounding?' · '+compLabel(rcs[rcIdx].compounding):'')});
-      rcIdx++;
-    }
-    // apply frequency changes effective on/before this payment date
-    if(!baseFreqOnly){
-      const fNow = freqAt(M, pdStr);
-      if(fNow !== freq){
-        freq = fNow; recalc();
-        rows.push({date:pdStr, type:'freq', freq, bal, note:'Frequency → '+freqLabel(freq)});
+    // Collect every event effective on/before this payment date, then apply them
+    // in TRUE DATE ORDER. Applying by category instead would both misorder the
+    // rows and, worse, recalculate the payment on a balance that hasn't yet had
+    // an earlier prepayment deducted.
+    const due = [];
+    while(rcIdx<rcs.length && rcs[rcIdx].date <= pdStr){ due.push({kind:'rate',   date:rcs[rcIdx].date, ref:rcs[rcIdx]}); rcIdx++; }
+    while(ppIdx<pps.length && pps[ppIdx].date <= pdStr){ due.push({kind:'prepay', date:pps[ppIdx].date, ref:pps[ppIdx]}); ppIdx++; }
+    while(fcIdx<fcs.length && fcs[fcIdx].date <= pdStr){ due.push({kind:'freq',   date:fcs[fcIdx].date, ref:fcs[fcIdx]}); fcIdx++; }
+    due.sort((a,b)=> a.date.localeCompare(b.date) || ORDER_TIE[a.kind]-ORDER_TIE[b.kind]);
+
+    for(const ev of due){
+      if(ev.kind==='prepay'){
+        const amt = Math.min(ev.ref.amount, bal);
+        bal -= amt;
+        rows.push({date:ev.date, type:'prepay', amount:amt, bal, note:ev.ref.note||ev.ref.source||''});
+      } else if(ev.kind==='rate'){
+        rate = ev.ref.rate;
+        if(ev.ref.compounding) comp = ev.ref.compounding;
+        recalc();
+        rows.push({date:ev.date, type:'rate', rate, comp, bal,
+                   note:'Rate → '+rate+'%'+(ev.ref.compounding?' · '+compLabel(ev.ref.compounding):'')});
+      } else {                                  // freq
+        if(ev.ref.freq !== freq){
+          freq = ev.ref.freq; recalc();
+          rows.push({date:ev.date, type:'freq', freq, bal, note:'Frequency → '+freqLabel(freq)});
+        }
       }
-    }
-    // prepayments on/before this payment date
-    while(ppIdx<pps.length && pps[ppIdx].date <= pdStr){
-      const amt = Math.min(pps[ppIdx].amount, bal);
-      bal -= amt;
-      rows.push({date:pps[ppIdx].date, type:'prepay', amount:amt, bal, note:pps[ppIdx].note||pps[ppIdx].source||''});
-      ppIdx++;
     }
     if(bal<=0.005) break;
 
