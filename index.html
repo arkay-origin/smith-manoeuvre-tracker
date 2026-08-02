@@ -186,11 +186,18 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   body{background:#fff;color:#111}
   #rail,button,.noprint,dialog{display:none!important}
   #app{display:block}
-  .card,.stat{border:1px solid #999;background:#fff;break-inside:avoid}
+  /* Large containers MUST be allowed to break. Marking .card unbreakable meant a
+     tall audit table jumped whole to the next sheet, leaving page 1 nearly empty.
+     Keep rows and small tiles intact instead — that's where it actually helps. */
+  .card{border:1px solid #999;background:#fff;break-inside:auto}
+  .stat{border:1px solid #999;background:#fff;break-inside:avoid}
+  tr,.statgrid{break-inside:avoid}
+  thead{display:table-header-group}          /* repeat headers across pages */
+  h1,h2,h3{color:#111;break-after:avoid}      /* no heading stranded at a page foot */
   .view{display:none}.view.print-target{display:block!important}
-  h1,h2,h3{color:#111}
   td,th{border-bottom:1px solid #bbb;color:#111}
   .disclaimer{background:#f4ecd8;color:#5a4a1e;border-color:#b09040}
+  #main{padding:0;max-width:none}
 }
 </style>
 </head>
@@ -545,8 +552,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <p class="faint">Generates a printable summary: yearly deductible interest, draw ledger with purposes and notes, holdings, ACB history, refund deployments. Attach your actual bank/brokerage statements behind it — <b>statements are the evidence; this is the index.</b></p>
     <div id="auditBody"></div>
   </div>
-  <div class="card">
-    <h2>Record-keeping guide</h2>
+  <div class="card noprint">
+    <h2>Record-keeping guide <span class="faint" style="font-size:.72rem;text-transform:none">— reference only, not included in the printed package</span></h2>
     <details open><summary>What the CRA actually wants</summary>
       <p>A clean, traceable flow: HELOC draw → dedicated chequing (optional but tidy) → non-registered investment account. Never mix personal spending into the SM credit line. Keep statements at least six years. One experienced filer's approach: once a year download 12 months of HELOC interest, SM chequing, and SM investment statements — that alone satisfies most reviews.</p></details>
     <details><summary>Capitalizing interest</summary>
@@ -584,6 +591,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
       <select id="txFrac"><option value="keep">Keep fractional units</option><option value="round">Round down (drop)</option><option value="cil">Cash in lieu</option></select></div>
     <div class="field" id="fCil" style="display:none"><label>Cash in lieu $</label><input type="number" id="txCil" step="0.01" value="0"></div>
   </div>
+  <div id="txTotalBox" class="callout" style="display:none;margin-bottom:.7rem"></div>
   <div class="field"><label>Note</label><input type="text" id="txNote" placeholder="context for future-you"></div>
   <div class="row" style="justify-content:flex-end"><button id="txCancel">Cancel</button><button class="primary" id="txSave">Save</button></div>
 </dialog>
@@ -1267,7 +1275,7 @@ $('hAddLine').onclick = ()=>{
   if(!name) return;
   S.helocs.push({id:uid(), name, limit:null, draws:[], payments:[],
     rateMode:'fixed', delta:null, rateHistory:[],
-    limitMode:'fixed', homeValue:null, maxLTV:null});
+    limitMode:'fixed', homeValue:null, maxLTV:null, initialRoom:null, growShare:100});
   touch();
 };
 // Backward-compat + normalization: fold any legacy single `rate` into rateHistory.
@@ -1280,15 +1288,23 @@ function migrateHeloc(h){
     h.rateHistory.push({date: dates[0] || '2000-01-01', rate: h.rate});
   }
   delete h.rate;
+  (h.draws||[]).forEach(d=>{ if(!d.id) d.id = uid(); });
+  (h.payments||[]).forEach(x=>{ if(!x.id) x.id = uid(); });
   if(!h.limitMode) h.limitMode = 'fixed';
   if(h.homeValue===undefined) h.homeValue = null;
   if(h.maxLTV===undefined) h.maxLTV = null;
+  if(h.initialRoom===undefined) h.initialRoom = null;
+  if(h.growShare===undefined) h.growShare = 100;
 }
 // Effective credit limit for a line, today. For a re-advanceable line linked to
 // the mortgage, the limit grows as principal is repaid:
 //   limit = homeValue × maxLTV% − current mortgage balance
 // Returns {limit, dynamic, detail} or {limit:null} when not determinable.
 function helocLimitNow(h){
+  // 'ltv' — total borrowing capacity against the property. Right when the whole
+  //         HELOC is the SM line; overstates it when the limit is sub-divided.
+  // 'grow' — this sub-account's own opening room, growing by the share of
+  //         mortgage principal repaid that gets credited back to this line.
   if(h.limitMode==='readvanceable'){
     if(!h.homeValue || !h.maxLTV) return {limit:null, dynamic:true};
     const st = mortgageStats(buildSchedule());
@@ -1296,6 +1312,15 @@ function helocLimitNow(h){
     const lim = Math.max(h.homeValue*(h.maxLTV/100) - mortBal, 0);
     return {limit:lim, dynamic:true,
       detail:`${fmt$(h.homeValue)} × ${h.maxLTV}% − ${fmt$(mortBal)} mortgage`};
+  }
+  if(h.limitMode==='grow'){
+    if(h.initialRoom==null) return {limit:null, dynamic:true};
+    const st = mortgageStats(buildSchedule());
+    const paid = st ? st.prinPaidNow : 0;
+    const share = (h.growShare==null ? 100 : h.growShare)/100;
+    const growth = paid*share;
+    return {limit: h.initialRoom + growth, dynamic:true,
+      detail:`${fmt$(h.initialRoom)} opening room + ${fmt$(growth)} principal repaid${share!==1?` (${(share*100).toFixed(0)}% share)`:''}`};
   }
   return {limit: h.limit ?? null, dynamic:false};
 }
@@ -1344,6 +1369,7 @@ function renderHelocs(){
   const wrap = $('helocList');
   if(!S.helocs.length){ wrap.innerHTML = '<div class="empty">No credit lines yet. Add your readvanceable HELOC (and any others) to start tagging draws.</div>'; return; }
   S.helocs.forEach(migrateHeloc);
+  const growModeCount = S.helocs.filter(x=>x.limitMode==='grow').length;
   wrap.innerHTML = primePanel() + S.helocs.map((h,hi)=>{
     const t = helocTotals(h);
     const mixed = t.nonDraw>0 && t.dedDraw>0;
@@ -1360,14 +1386,22 @@ function renderHelocs(){
            <select onchange="setRateMode(${hi},this.value)"><option value="fixed" selected>Fixed / manual</option><option value="prime">Prime + delta</option></select></div>
          <div class="field"><label>Effective rate today</label><input disabled value="${rNow!=null?rNow.toFixed(2)+'%':'add a rate below'}"></div>`;
     // credit-limit block: fixed limit, or re-advanceable derived from LTV
+    const limitSel = sel => `<div class="field"><label>Limit type</label>
+        <select onchange="setHeloc(${hi},'limitMode',this.value)">
+          <option value="fixed"${sel==='fixed'?' selected':''}>Fixed limit</option>
+          <option value="grow"${sel==='grow'?' selected':''}>Re-advanceable — opening room + principal repaid</option>
+          <option value="readvanceable"${sel==='readvanceable'?' selected':''}>Re-advanceable — derived from home value &amp; LTV</option>
+        </select></div>`;
     const limitBlock = h.limitMode==='readvanceable'
-      ? `<div class="field"><label>Limit type</label>
-           <select onchange="setHeloc(${hi},'limitMode',this.value)"><option value="fixed">Fixed limit</option><option value="readvanceable" selected>Re-advanceable (grows)</option></select></div>
-         <div class="field"><label>Home value $</label><input type="number" step="0.01" value="${h.homeValue??''}" placeholder="appraised value" onchange="setHeloc(${hi},'homeValue',this.value===''?null:+this.value)"></div>
+      ? limitSel('readvanceable') +
+        `<div class="field"><label>Home value $</label><input type="number" step="0.01" value="${h.homeValue??''}" placeholder="appraised value" onchange="setHeloc(${hi},'homeValue',this.value===''?null:+this.value)"></div>
          <div class="field"><label>Max LTV %</label><input type="number" step="0.1" value="${h.maxLTV??''}" placeholder="usually 65 (or 80 incl. mortgage)" onchange="setHeloc(${hi},'maxLTV',this.value===''?null:+this.value)"></div>`
-      : `<div class="field"><label>Limit type</label>
-           <select onchange="setHeloc(${hi},'limitMode',this.value)"><option value="fixed" selected>Fixed limit</option><option value="readvanceable">Re-advanceable (grows)</option></select></div>
-         <div class="field"><label>Credit limit $</label><input type="number" step="0.01" value="${h.limit??''}" onchange="setHeloc(${hi},'limit',this.value===''?null:+this.value)"></div>`;
+      : h.limitMode==='grow'
+      ? limitSel('grow') +
+        `<div class="field"><label>Opening room $</label><input type="number" step="0.01" value="${h.initialRoom??''}" placeholder="this line's starting limit" onchange="setHeloc(${hi},'initialRoom',this.value===''?null:+this.value)"></div>
+         <div class="field"><label>Share of principal repaid %</label><input type="number" step="1" value="${h.growShare??100}" placeholder="100" onchange="setHeloc(${hi},'growShare',this.value===''?100:+this.value)"></div>`
+      : limitSel('fixed') +
+        `<div class="field"><label>Credit limit $</label><input type="number" step="0.01" value="${h.limit??''}" onchange="setHeloc(${hi},'limit',this.value===''?null:+this.value)"></div>`;
     return `<div class="card">
       <div class="spread"><h2>${esc(h.name)}</h2>
         <div class="row">
@@ -1380,7 +1414,9 @@ function renderHelocs(){
           <input disabled value="${roomAvail!=null?fmt$(roomAvail):'—'}"></div>
       </div>
       ${lim.dynamic && lim.detail ? `<p class="faint" style="margin:-.1rem 0 .5rem">Room grows as you pay down the mortgage: limit = <b>${lim.detail}</b> = ${fmt$(lim.limit)}. ${roomAvail!=null&&roomAvail<0?'<span class="red">You are over the derived limit.</span>':''}</p>`:''}
-      ${lim.dynamic && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV</span> to compute the re-advanceable limit. Max LTV is usually 65% for the revolving HELOC portion (or up to 80% of home value including your mortgage, depending on the product).</p>':''}
+      ${h.limitMode==='readvanceable' && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV</span> to compute the re-advanceable limit. Max LTV is usually 65% for the revolving HELOC portion (or up to 80% of home value including your mortgage, depending on the product).</p>':''}
+      ${h.limitMode==='grow' && h.initialRoom==null ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter this line\'s opening room</span> — the limit it started with. Principal you repay on the mortgage is then added to it. Use this when your global HELOC limit is split across sub-accounts (e.g. a personal line and an SM line), since a home-value/LTV figure would capture the whole limit, not just this line.</p>':''}
+      ${h.limitMode==='grow' && growModeCount>1 ? '<div class="disclaimer" style="margin-bottom:.7rem"><strong>More than one line grows with principal.</strong> Each line is crediting its own share of the same mortgage principal — set the shares so they total 100% or you will overstate your room.</div>':''}
       ${h.rateMode==='fixed' ? rateHistoryEditor(h,hi) :
         `<p class="faint" style="margin:.2rem 0 .6rem">Effective rate = prime (set once, shared) + this line's delta. Prime changes flow through automatically. <span class="gold">${(S.primeHistory||[]).length?'':'Set prime in the panel above.'}</span></p>`}
       ${mixed?'<div class="disclaimer" style="margin-bottom:.7rem"><strong>Mixed use detected.</strong> This line has both deductible and non-deductible draws — interest must be prorated and the CRA hates fuzzy math. Strongly consider separate lines/sub-accounts.</div>':''}
@@ -1425,21 +1461,47 @@ window.addDraw = hi=>{
   const date=$(`hd-date-${hi}`).value, amt=+$(`hd-amt-${hi}`).value;
   if(!date||!amt){ alert('Date and amount required'); return; }
   const purpose=$(`hd-pur-${hi}`).value, note=$(`hd-note-${hi}`).value;
+  // Warn — but don't hard-block — when a draw would exceed the known room. A block
+  // would trap people backfilling history, or whose lender re-advances on a
+  // different schedule than this tool assumes.
+  if(purpose!=='principal'){
+    const h = S.helocs[hi], lim = helocLimitNow(h);
+    if(lim.limit != null){
+      const room = lim.limit - helocTotals(h).bal;
+      if(amt > room + 0.005){
+        const over = amt - room;
+        if(!confirm(`This draw exceeds the available room on ${h.name}.\n\n`
+          + `Available: ${fmt$2(room)}\nThis draw: ${fmt$2(amt)}\nOver by: ${fmt$2(over)}\n\n`
+          + `Record it anyway?`)) return;
+      }
+    }
+  }
   if(purpose==='principal'){
-    S.helocs[hi].payments.push({date, amount:amt, note});
+    S.helocs[hi].payments.push({id:uid(), date, amount:amt, note});
     touch(); return;
   }
-  S.helocs[hi].draws.push({date, amount:amt, purpose, note});
-  const drawIdx = S.helocs[hi].draws.length-1;
+  const drawId = uid();
+  S.helocs[hi].draws.push({id:drawId, date, amount:amt, purpose, note});
   touch();
   if(purpose==='invest'){
     // Open the buy dialog directly — it has its own Cancel, so a confirm() first
     // would just be two prompts for one decision.
-    pendingTxLink = {kind:'draw', helocId:S.helocs[hi].id, drawIdx};
+    pendingTxLink = {kind:'draw', helocId:S.helocs[hi].id, drawId,
+                     available:amt, label:S.helocs[hi].name};
     $('txDate').value = date; $('txType').value='buy'; txTypeUI(); txDlg.showModal();
   }
 };
-window.delDraw = (hi,di)=>{ S.helocs[hi].draws.splice(di,1); touch(); };
+window.delDraw = (hi,di)=>{
+  const h = S.helocs[hi], d = h.draws[di];
+  if(d && d.id){
+    const linked = S.tx.filter(t=>t.link && t.link.src==='heloc-draw' && t.link.drawId===d.id);
+    if(linked.length && confirm(`This draw is linked to ${linked.length} investment transaction${linked.length===1?'':'s'}.\n\nDelete ${linked.length===1?'it':'them'} as well?`)){
+      const ids = new Set(linked.map(t=>t.id));
+      S.tx = S.tx.filter(t=>!ids.has(t.id));
+    }
+  }
+  h.draws.splice(di,1); touch();
+};
 window.delHPayRow = (hi,pi)=>{ S.helocs[hi].payments.splice(pi,1); touch(); };
 
 /* ---- rate history (fixed/manual lines) ---- */
@@ -1611,15 +1673,23 @@ function renderInvest(){
       <td class="num ${p.realized>=0?'green':'red'}">${fmt$2(p.realized)}</td></tr>`;}).join('')
     : '<tr><td class="empty">No holdings yet — add transactions or import a CSV.</td></tr>';
   const sorted = txSorted();
+  const srcTag = t => {
+    const l = t.link || (t.refundId ? {src:'refund'} : null);
+    if(!l) return '<span class="faint">manual</span>';
+    if(l.src==='heloc-draw') return `<span class="tag gold" title="${esc(l.label||'')}">HELOC draw</span>`;
+    if(l.src==='refund')     return `<span class="tag green" title="${esc(l.label||'')}">Tax refund</span>`;
+    return '<span class="faint">manual</span>';
+  };
   const txRow = (t, withSym) => `<tr>
       <td><a href="#" onclick="showEvent('${t.id}');return false" style="color:var(--blue)">${t.date}</a></td>
       <td><span class="tag ${t.type==='sell'?'red':t.type==='buy'?'gold':'blue'}">${TXLABEL[t.type]||t.type}</span></td>
+      <td>${srcTag(t)}</td>
       ${withSym?`<td>${esc(t.sym)}</td>`:''}<td class="num">${t.qty!=null?fmtN(t.qty):t.ratio?fmtN(t.ratio)+'×':'—'}</td>
       <td class="num">${t.price!=null?fmt$2(t.price):'—'}</td>
       <td class="num">${t.amount!=null?fmt$2(t.amount):(t.qty&&t.price)?fmt$2(t.qty*t.price):'—'}</td>
       <td class="faint">${esc(t.note)}</td>
       <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small danger" onclick="delTx('${t.id}')">×</button></td></tr>`;
-  const headRow = withSym => `<tr><th>Date</th><th>Type</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th></th></tr>`;
+  const headRow = withSym => `<tr><th>Date</th><th>Type</th><th>Source</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th></th></tr>`;
   if(!sorted.length){
     $('txWrap').innerHTML = '<table><tr><td class="empty">Empty ledger.</td></tr></table>';
   } else if(txView==='sym'){
@@ -1670,12 +1740,30 @@ window.showEvent = id => {
   $('eventDialog').showModal();
 };
 $('evClose').onclick = ()=> $('eventDialog').close();
-window.delTx = id => { S.tx = S.tx.filter(t=>t.id!==id); touch(); };
+window.delTx = id => {
+  const t = S.tx.find(x=>x.id===id);
+  const l = t && (t.link || (t.refundId ? {src:'refund', refundId:t.refundId} : null));
+  if(l){
+    if(l.src==='heloc-draw'){
+      const h = S.helocs.find(x=>x.id===l.helocId);
+      const d = h && h.draws.find(x=>x.id===l.drawId);
+      if(d && confirm(`This purchase is linked to a ${fmt$2(d.amount)} draw on ${d.date} (${h.name}).\n\nDelete that HELOC draw as well?`)){
+        h.draws = h.draws.filter(x=>x.id!==l.drawId);
+      }
+    } else if(l.src==='refund'){
+      const r = S.refunds.find(x=>x.id===l.refundId);
+      if(r && confirm(`This purchase is linked to the ${r.year} tax refund entry.\n\nDelete that refund record as well?`)){
+        S.refunds = S.refunds.filter(x=>x.id!==l.refundId);
+      } else if(r){ delete r.linked; }
+    }
+  }
+  S.tx = S.tx.filter(x=>x.id!==id); touch();
+};
 
 /* --- transaction dialog --- */
 const txDlg = $('txDialog');
 let pendingTxLink = null;   // {kind:'draw',helocId,drawIdx} | {kind:'refund',refundId}
-$('txAddBtn').onclick = ()=>{ $('txDate').value = today(); txTypeUI(); txDlg.showModal(); };
+$('txAddBtn').onclick = ()=>{ pendingTxLink=null; $('txDate').value = today(); txTypeUI(); txDlg.showModal(); };
 $('txCancel').onclick = ()=>{ pendingTxLink=null; txDlg.close(); };
 $('txType').onchange = txTypeUI;
 function txTypeUI(){
@@ -1687,8 +1775,47 @@ function txTypeUI(){
   $('fRatio').style.display = t==='split' ? '' : 'none';
   $('fFrac').style.display  = t==='split' ? '' : 'none';
   $('fCil').style.display   = (t==='split' && $('txFrac').value==='cil') ? '' : 'none';
+  txUpdateTotal();
 }
 $('txFrac').onchange = txTypeUI;
+
+// Live computed total. When the entry came from a linked HELOC draw or tax refund,
+// show it against the amount that action made available. Exceeding it isn't an
+// error — it means personal cash topped up the purchase — but it's worth flagging,
+// because mixing personal and borrowed capital in one holding affects deductibility.
+function txUpdateTotal(){
+  const box = $('txTotalBox');
+  const t = $('txType').value;
+  let total = null, label = '';
+  if(t==='buy'||t==='sell'||t==='drip'){
+    const q = parseFloat($('txQty').value), pr = parseFloat($('txPrice').value);
+    const fee = parseFloat($('txFee').value)||0;
+    if(!isNaN(q) && !isNaN(pr)){
+      total = t==='sell' ? q*pr - fee : q*pr + fee;
+      label = t==='sell' ? 'Net proceeds' : 'Total cost';
+    }
+  } else if(t==='div'||t==='roc'||t==='phantom'){
+    const a = parseFloat($('txAmt').value);
+    if(!isNaN(a)){ total = a; label = 'Amount'; }
+  }
+  if(total==null){ box.style.display='none'; return; }
+  const avail = pendingTxLink && pendingTxLink.available;
+  let html = `<b>${label}: ${fmt$2(total)}</b>`;
+  if(avail){
+    const over = total - avail;
+    html += ` <span class="faint">of ${fmt$2(avail)} available</span> <span class="faint">(${esc(pendingTxLink.label||'linked')})</span>`;
+    if(over > 0.005){
+      html += `<br><span class="red">${fmt$2(over)} more than the linked amount</span> — the excess is personal capital, not borrowed. That portion's interest isn't deductible, and it dilutes the borrowed share of this holding.`;
+    } else if(over < -0.005){
+      html += `<br><span class="faint">${fmt$2(-over)} of the linked amount not yet invested.</span>`;
+    }
+  }
+  box.innerHTML = html;
+  box.style.display = '';
+}
+['txQty','txPrice','txFee','txAmt'].forEach(id=>{
+  $(id).addEventListener('input', txUpdateTotal);
+});
 $('txSave').onclick = ()=>{
   const type=$('txType').value, date=$('txDate').value, sym=$('txSym').value.trim().toUpperCase();
   if(!date||!sym){ alert('Date and symbol required'); return; }
@@ -1707,16 +1834,26 @@ $('txSave').onclick = ()=>{
   }
   // cross-tab links (HELOC draw / refund deployment)
   if(pendingTxLink){
-    if(pendingTxLink.kind==='draw' && type==='buy'){
+    if(pendingTxLink.kind==='draw'){
       const h = S.helocs.find(x=>x.id===pendingTxLink.helocId);
-      const d = h && h.draws[pendingTxLink.drawIdx];
-      if(d){ const tag=`BUY ${fmtN(rec.qty)} ${sym} @ ${fmt$2(rec.price)}`;
-        d.note = d.note ? d.note+' · '+tag : tag; }
+      const d = h && h.draws.find(x=>x.id===pendingTxLink.drawId);
+      if(d){
+        rec.link = {src:'heloc-draw', helocId:h.id, drawId:d.id, label:h.name};
+        const tag = `BUY ${fmtN(rec.qty)} ${sym} @ ${fmt$2(rec.price)}`;
+        d.note = d.note ? d.note+' · '+tag : tag;
+        const back = `from ${h.name} draw ${d.date}`;
+        rec.note = rec.note ? rec.note+' · '+back : back;
+      }
     }
     if(pendingTxLink.kind==='refund'){
-      rec.refundId = pendingTxLink.refundId;
+      rec.refundId = pendingTxLink.refundId;                 // kept for older files
       const r = S.refunds.find(x=>x.id===pendingTxLink.refundId);
-      if(r) r.linked = {kind:'invest'};
+      if(r){
+        r.linked = {kind:'invest'};
+        rec.link = {src:'refund', refundId:r.id, label:r.year+' refund'};
+        const back = `from ${r.year} tax refund`;
+        rec.note = rec.note ? rec.note+' · '+back : back;
+      }
     }
     pendingTxLink = null;
   }
@@ -1724,7 +1861,7 @@ $('txSave').onclick = ()=>{
   ['txSym','txQty','txPrice','txAmt','txNote','txRatio'].forEach(i=>$(i).value='');
   touch();
 };
-txDlg.addEventListener('close', ()=>{ pendingTxLink=null; });
+txDlg.addEventListener('close', ()=>{ pendingTxLink=null; $('txTotalBox').style.display='none'; });
 $('txCsv').onclick = ()=>{
   const csv='date,type,symbol,qty,price,fee,amount,ratio,note\n'+txSorted().map(t=>
     [t.date,t.type,t.sym,t.qty??'',t.price??'',t.fee??'',t.amount??'',t.ratio??'',(t.note||'').replace(/,/g,';')].join(',')).join('\n');
@@ -1903,7 +2040,7 @@ $('rdAdd').onclick = ()=>{
   const rec = {id:rid, year:y, amount:a, to, note:$('rdNote').value};
 
   if(canLink && link && to==='More investments'){
-    pendingTxLink = {kind:'refund', refundId:rid};
+    pendingTxLink = {kind:'refund', refundId:rid, available:a, label:y+' tax refund'};
     $('txDate').value = date; $('txType').value='buy'; txTypeUI();
     setTimeout(()=>txDlg.showModal(), 50);
   }
