@@ -359,7 +359,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
       <div class="field" id="mCustomWrap" style="display:none"><label>My payment (per period) $</label>
         <input type="number" id="mCustomPay" step="0.01" placeholder="what actually leaves your account"></div>
     </div>
-    <p class="faint">Compounding and payment amount both feed the schedule. Changing them here re-applies on <b>Apply / recalc</b> above.</p>
+    <p class="faint">Compounding and payment amount both feed the schedule. Changes save as you make them; <b>Apply / recalc</b> at the end of this section closes it and returns you to the overview.</p>
 
     <hr>
     <h3>Payment amount changes</h3>
@@ -2212,7 +2212,7 @@ function rdSyncFields(){
     ? (rdAutoLink
         ? `<span class="green">${to==='More investments'
             ? 'Opens the purchase dialog, linked to this refund.'
-            : `Creates the matching ${to==='Mortgage prepayment'?'prepayment':'HELOC payment'}, dated below.`}</span>`
+            : `Creates the matching ${to==='Mortgage prepayment'?'prepayment':'HELOC payment'} on the deployment date set above.`}</span>`
         : 'Logged here only — no entry added elsewhere.')
     : '';
 }
