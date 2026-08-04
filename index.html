@@ -524,6 +524,11 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
       <div class="field"><label>Horizon (years)</label><input type="number" id="sYears" placeholder="e.g. 25"></div>
       <div class="field"><label>Leveraged: initial lump $</label><input type="number" id="sLump" placeholder="0 if none"></div>
       <div class="field"><label>Leveraged: extra draw $/mo</label><input type="number" id="sLevMo" placeholder="0 if none"></div>
+      <div class="field"><label>After payoff, freed cashflow…</label>
+        <select id="sPost">
+          <option value="invest" selected>Keeps investing — stay leveraged</option>
+          <option value="paydown">Pays down the HELOC — deleverage</option>
+        </select></div>
     </div>
     <details id="marginBox">
       <summary>Advanced: margin loan layered on a HELOC (read this first)</summary>
@@ -613,6 +618,20 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <div id="csvPreview" class="faint"></div>
   </div>
   <div class="row" style="justify-content:flex-end"><button id="csvCancel">Cancel</button><button class="primary" id="csvGo" disabled>Import</button></div>
+</dialog>
+
+<dialog id="editDialog">
+  <h2 id="edTitle">Edit entry</h2>
+  <p class="faint" id="edHint" style="margin:.2rem 0 .8rem"></p>
+  <div class="grid g2">
+    <div class="field"><label>Date</label><input type="date" id="edDate"></div>
+    <div class="field"><label>Amount $</label><input type="number" id="edAmt" step="0.01"></div>
+    <div class="field" id="edSelWrap"><label id="edSelLabel">Type</label><select id="edSel"></select></div>
+  </div>
+  <div class="field"><label>Note</label><input type="text" id="edNote"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:.6rem">
+    <button id="edCancel">Cancel</button><button class="primary" id="edSave">Save changes</button>
+  </div>
 </dialog>
 
 <dialog id="eventDialog">
@@ -1141,7 +1160,7 @@ function renderMortgage(){
     ppsSorted.map(r=>{ const i=M.prepayments.indexOf(r);
       return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
       <td><span class="tag blue">${esc(r.source)}</span></td><td class="faint">${esc(r.note)}</td>
-      <td><button class="small danger" onclick="delPP(${i})">×</button></td></tr>`;}).join('')
+      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editPP(${i})">Edit</button><button class="small danger" onclick="delPP(${i})">×</button></td></tr>`;}).join('')
     : '<tr><td class="empty">No prepayments recorded. Prepay → re-borrow → invest is the whole engine.</td></tr>';
   // schedule — yearly rollup or full per-payment detail
   const t = $('mSched');
@@ -1447,10 +1466,10 @@ function renderHelocs(){
           .map(r=> r.kind==='draw'
             ? `<tr><td>${r.d.date}</td><td><span class="tag ${PURPOSES[r.d.purpose]?.cls||'red'}">${PURPOSES[r.d.purpose]?.label||r.d.purpose}</span></td>
                <td class="num">${fmt$2(r.d.amount)}</td><td class="faint">${esc(r.d.note)}</td>
-               <td><button class="small danger" onclick="delDraw(${hi},${r.di})">×</button></td></tr>`
+               <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editDraw(${hi},${r.di})">Edit</button><button class="small danger" onclick="delDraw(${hi},${r.di})">×</button></td></tr>`
             : `<tr><td>${r.d.date}</td><td><span class="tag green">Principal payment</span></td>
                <td class="num">−${fmt$2(r.d.amount).replace('−','')}</td><td class="faint">${esc(r.d.note)}</td>
-               <td><button class="small danger" onclick="delHPayRow(${hi},${r.di})">×</button></td></tr>`).join('')
+               <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editHPay(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHPayRow(${hi},${r.di})">×</button></td></tr>`).join('')
         : '<tr><td class="empty">No activity on this line yet.</td></tr>'
       }</table></div>
     </div>`;
@@ -1691,7 +1710,7 @@ function renderInvest(){
       <td class="num">${t.price!=null?fmt$2(t.price):'—'}</td>
       <td class="num">${t.amount!=null?fmt$2(t.amount):(t.qty&&t.price)?fmt$2(t.qty*t.price):'—'}</td>
       <td class="faint">${esc(t.note)}</td>
-      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small danger" onclick="delTx('${t.id}')">×</button></td></tr>`;
+      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small" onclick="editTx('${t.id}')">Edit</button><button class="small danger" onclick="delTx('${t.id}')">×</button></td></tr>`;
   const headRow = withSym => `<tr><th>Date</th><th>Type</th><th>Source</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th></th></tr>`;
   if(!sorted.length){
     $('txWrap').innerHTML = '<table><tr><td class="empty">Empty ledger.</td></tr></table>';
@@ -1709,6 +1728,73 @@ function renderInvest(){
   $('slWarn').innerHTML = slFlags.length ? slFlags.map(f=>`<p class="red" style="font-size:.85rem">⚠ ${esc(f)}</p>`).join('') :
     '<p class="faint">No same-account superficial losses detected.</p>';
 }
+/* =================================================================
+   EDIT ENTRIES — prepayments, HELOC draws/payments
+   Editing in place preserves the record's id, so any linked investment
+   transaction stays attached. Delete-and-re-add would break that link
+   (and can now cascade-delete the linked record).
+   ================================================================= */
+const edDlg = $('editDialog');
+let edTarget = null;   // {kind, ...locator}
+function openEdit(cfg){
+  edTarget = cfg.target;
+  $('edTitle').textContent = cfg.title;
+  $('edHint').textContent  = cfg.hint || '';
+  $('edDate').value = cfg.date || '';
+  $('edAmt').value  = cfg.amount!=null ? cfg.amount : '';
+  $('edNote').value = cfg.note || '';
+  if(cfg.options){
+    $('edSelWrap').style.display = '';
+    $('edSelLabel').textContent = cfg.selLabel || 'Type';
+    $('edSel').innerHTML = cfg.options.map(o=>
+      `<option value="${esc(o.value)}"${o.value===cfg.selected?' selected':''}>${esc(o.label)}</option>`).join('');
+  } else {
+    $('edSelWrap').style.display = 'none';
+    $('edSel').innerHTML = '';
+  }
+  edDlg.showModal();
+}
+$('edCancel').onclick = ()=>{ edTarget=null; edDlg.close(); };
+$('edSave').onclick = ()=>{
+  if(!edTarget) return;
+  const date = $('edDate').value, amt = +$('edAmt').value;
+  if(!date || !amt){ alert('Date and amount are both required.'); return; }
+  const note = $('edNote').value, sel = $('edSel').value;
+  const t = edTarget;
+  if(t.kind==='prepay'){
+    const r = S.mortgage.prepayments[t.i];
+    if(r){ r.date=date; r.amount=amt; r.source=sel||r.source; r.note=note; }
+  } else if(t.kind==='draw'){
+    const h = S.helocs[t.hi], d = h && h.draws[t.i];
+    if(d){ d.date=date; d.amount=amt; d.purpose=sel||d.purpose; d.note=note; }
+  } else if(t.kind==='helocPay'){
+    const h = S.helocs[t.hi], pmt = h && h.payments[t.i];
+    if(pmt){ pmt.date=date; pmt.amount=amt; pmt.note=note; }
+  }
+  edTarget=null; edDlg.close(); touch();
+};
+
+window.editPP = i => {
+  const r = S.mortgage.prepayments[i]; if(!r) return;
+  openEdit({ target:{kind:'prepay', i}, title:'Edit prepayment',
+    hint:'Changing the date or amount re-runs the whole amortization schedule.',
+    date:r.date, amount:r.amount, note:r.note, selLabel:'Source', selected:r.source,
+    options:['Cashflow','Dividends','Tax refund','Sale proceeds','Other'].map(v=>({value:v,label:v})) });
+};
+window.editDraw = (hi,i) => {
+  const d = S.helocs[hi] && S.helocs[hi].draws[i]; if(!d) return;
+  const linked = S.tx.filter(t=>t.link && t.link.src==='heloc-draw' && t.link.drawId===d.id).length;
+  openEdit({ target:{kind:'draw', hi, i}, title:'Edit HELOC draw',
+    hint: linked ? `${linked} linked investment transaction${linked===1?'':'s'} will stay attached.` : '',
+    date:d.date, amount:d.amount, note:d.note, selLabel:'Purpose', selected:d.purpose,
+    options:Object.entries(PURPOSES).map(([k,v])=>({value:k,label:v.label})) });
+};
+window.editHPay = (hi,i) => {
+  const pmt = S.helocs[hi] && S.helocs[hi].payments[i]; if(!pmt) return;
+  openEdit({ target:{kind:'helocPay', hi, i}, title:'Edit principal payment',
+    date:pmt.date, amount:pmt.amount, note:pmt.note });
+};
+
 let lastEvents = {};
 $('txvAll').onclick = ()=>{ txView='all'; $('txvAll').classList.add('on'); $('txvSym').classList.remove('on'); renderInvest(); };
 $('txvSym').onclick = ()=>{ txView='sym'; $('txvSym').classList.add('on'); $('txvAll').classList.remove('on'); renderInvest(); };
@@ -1765,8 +1851,26 @@ window.delTx = id => {
 
 /* --- transaction dialog --- */
 const txDlg = $('txDialog');
-let pendingTxLink = null;   // {kind:'draw',helocId,drawIdx} | {kind:'refund',refundId}
-$('txAddBtn').onclick = ()=>{ pendingTxLink=null; $('txDate').value = today(); txTypeUI(); txDlg.showModal(); };
+let pendingTxLink = null;   // {kind:'draw',helocId,drawId} | {kind:'refund',refundId}
+let editingTxId = null;     // when set, txSave updates in place instead of adding
+
+window.editTx = id => {
+  const t = S.tx.find(x=>x.id===id); if(!t) return;
+  editingTxId = id; pendingTxLink = null;
+  $('txType').value = t.type; $('txDate').value = t.date; $('txSym').value = t.sym;
+  $('txQty').value   = t.qty   ?? '';
+  $('txPrice').value = t.price ?? '';
+  $('txFee').value   = t.fee   ?? 0;
+  $('txAmt').value   = t.amount?? '';
+  $('txRatio').value = t.ratio ?? '';
+  if(t.frac) $('txFrac').value = t.frac;
+  $('txCil').value   = t.cil   ?? 0;
+  $('txNote').value  = t.note  || '';
+  $('txDialog').querySelector('h2').textContent = 'Edit transaction';
+  $('txSave').textContent = 'Save changes';
+  txTypeUI(); txDlg.showModal();
+};
+$('txAddBtn').onclick = ()=>{ pendingTxLink=null; editingTxId=null; $('txDate').value = today(); txTypeUI(); txDlg.showModal(); };
 $('txCancel').onclick = ()=>{ pendingTxLink=null; txDlg.close(); };
 $('txType').onchange = txTypeUI;
 function txTypeUI(){
@@ -1822,7 +1926,11 @@ function txUpdateTotal(){
 $('txSave').onclick = ()=>{
   const type=$('txType').value, date=$('txDate').value, sym=$('txSym').value.trim().toUpperCase();
   if(!date||!sym){ alert('Date and symbol required'); return; }
-  const rec = {id:uid(), seq:S.tx.length, type, date, sym, note:$('txNote').value};
+  const existing = editingTxId ? S.tx.find(x=>x.id===editingTxId) : null;
+  const rec = existing
+    ? {...existing, type, date, sym, note:$('txNote').value,
+       qty:undefined, price:undefined, fee:undefined, amount:undefined, ratio:undefined, frac:undefined, cil:undefined}
+    : {id:uid(), seq:S.tx.length, type, date, sym, note:$('txNote').value};
   if(['buy','sell','drip'].includes(type)){
     rec.qty=+$('txQty').value; rec.price=+$('txPrice').value; rec.fee=+$('txFee').value||0;
     if(!rec.qty||!rec.price){ alert('Quantity and price required'); return; }
@@ -1860,11 +1968,22 @@ $('txSave').onclick = ()=>{
     }
     pendingTxLink = null;
   }
-  S.tx.push(rec); txDlg.close();
+  if(existing){
+    // preserve identity and any link; replace the editable fields
+    Object.keys(rec).forEach(k=>{ if(rec[k]===undefined) delete existing[k]; else existing[k]=rec[k]; });
+  } else {
+    S.tx.push(rec);
+  }
+  txDlg.close();
   ['txSym','txQty','txPrice','txAmt','txNote','txRatio'].forEach(i=>$(i).value='');
   touch();
 };
-txDlg.addEventListener('close', ()=>{ pendingTxLink=null; $('txTotalBox').style.display='none'; });
+txDlg.addEventListener('close', ()=>{
+  pendingTxLink=null; editingTxId=null;
+  $('txTotalBox').style.display='none';
+  $('txDialog').querySelector('h2').textContent = 'Add transaction';
+  $('txSave').textContent = 'Save';
+});
 $('txCsv').onclick = ()=>{
   const csv='date,type,symbol,qty,price,fee,amount,ratio,note\n'+txSorted().map(t=>
     [t.date,t.type,t.sym,t.qty??'',t.price??'',t.fee??'',t.amount??'',t.ratio??'',(t.note||'').replace(/,/g,';')].join(',')).join('\n');
@@ -2182,90 +2301,131 @@ $('auditJson').onclick = ()=> dl(serialize(), 'smith-manoeuvre-full-export.json'
 /* =================================================================
    SIMULATOR — do-nothing vs debt swap vs leveraged (+margin overlay)
    ================================================================= */
-function runSim(){
-  const P0=+$('sMort').value, mR=+$('sMRate').value, amort=+$('sAmort').value,
-        hR=+$('sHRate').value, ret=+$('sRet').value/100, yld=+$('sYield').value/100,
-        mtr=+$('sMTR').value/100, divTax=+$('sDivTax').value/100,
-        extra=+$('sExtra').value, yrs=+$('sYears').value,
-        lump=+$('sLump').value, levMo=+$('sLevMo').value,
-        mgOn=$('sMgOn').value==='1', mgR=+$('sMgRate').value/100, mgPct=+$('sMgPct').value/100;
-  const iM = periodicRate(mR,12,$('sComp').value);   // monthly periodic rate on chosen compounding
-  const pay = P0*iM/(1-Math.pow(1+iM,-amort*12));
-  const hRm = hR/100/12, gM = Math.pow(1+ret,1/12)-1, yM = yld/12;
-  const priceG = Math.max(gM - yM, 0);             // price growth = total − yield
-  const N = yrs*12;
+/* ============================================================
+   Simulator engine v2 — equal-cash principle.
+   Every scenario deploys the SAME out-of-pocket cash each month:
+   the mortgage payment + extra. After a scenario's mortgage is
+   paid off, that freed payment keeps flowing (invest or paydown
+   per policy). No cash is ever dropped.
+   Timing convention (uniform across debt & portfolio):
+   - growth/interest computed on START-of-month balances
+   - contributions/conversions land at month END (no growth/interest
+     in their first month)
+   ============================================================ */
+function simEngine(p){
+  // p: {P0,mR,comp,amort,hR,ret,yld,mtr,divTax,extra,yrs,lump,levMo,
+  //     mgOn,mgR,mgPct,postPolicy}
+  const iM  = p.iM;                        // monthly mortgage periodic rate (precomputed for comp basis)
+  const pay = p.P0*iM/(1-Math.pow(1+iM,-p.amort*12));
+  const hRm = p.hR/100/12;
+  const gM  = Math.pow(1+p.ret/100,1/12)-1;
+  const yM  = p.yld/100/12;
+  const priceG = Math.max(gM-yM,0);
+  const mgRm = (p.mgR||0)/100/12;
+  const N = Math.round(p.yrs*12);
 
-  // scenario state factory
-  const mk = () => ({mort:P0, heloc:0, margin:0, port:0, dedInt:0, series:[]});
-  const dn = mk(), ds = mk(), lv = mk(), lvm = mgOn? mk() : null;
-  if(lv){ lv.heloc += lump; lv.port += lump; }
-  if(lvm){ lvm.heloc += lump; lvm.port += lump; }
+  const mk = () => ({mort:p.P0, heloc:0, margin:0, port:0, dedInt:0,
+                     series:[], payoffMonth:null, netAtPayoff:null});
+  const dn = mk(), ds = mk(), lv = mk(), lvm = p.mgOn? mk() : null;
+  for(const s of [lv,lvm]) if(s){ s.heloc+=p.lump; s.port+=p.lump; }
 
-  const stepMortgage = s => {
-    if(s.mort<=0) return 0;
-    const int = s.mort*iM;
-    const prin = Math.min(pay-int, s.mort);
-    s.mort -= prin;
-    return prin;                                   // principal freed this month
+  const nw = s => s.port - s.heloc - (s.margin||0) - s.mort;
+
+  // Deploy `cash` in an SM scenario whose mortgage is GONE, per policy.
+  // HELOC (+margin) interest h0 (start-of-month) is paid from cash first;
+  // a shortfall capitalizes; the remainder invests or pays down — never vanishes.
+  const deployPostPayoff = (s, cash, h0) => {
+    s.dedInt += h0;
+    let rem = cash - h0;
+    if(rem < 0){ s.heloc += -rem; return; }        // capitalize the shortfall
+    if(p.postPolicy==='paydown'){
+      const pd = Math.min(rem, s.heloc); s.heloc -= pd; rem -= pd;
+    }
+    s.port += rem;                                  // invest whatever remains
   };
-  // one SM month: prepays reborrowed & invested; HELOC interest capitalized until payoff, then cash-paid
+
   const smMonth = (s, extraDraw) => {
-    // portfolio grows & pays dividends
-    const div = s.port*yM;
-    s.port *= (1+priceG);
-    // mortgage payment: principal freed → reborrow → invest
-    let freed = stepMortgage(s);
-    // extra cashflow + dividends prepay mortgage, then reborrow & invest
-    let prepay = extra + div;
-    if(s.mort>0){
-      const applied = Math.min(prepay, s.mort);
-      s.mort -= applied; freed += applied;
+    const port0=s.port, m0=s.mort, H0=s.heloc, mg0=s.margin||0;
+    const divCash = port0*yM*(1-p.divTax/100);      // after-tax dividends, uniform
+    s.port = port0*(1+priceG);
+    const cash = pay + p.extra + divCash;           // identical out-of-pocket + divs
+    if(m0 > 0){
+      const int = m0*iM;
+      let avail = cash - int;
+      const prin = Math.min(Math.max(avail,0), m0); // regular principal + prepay
+      s.mort = m0 - prin; avail -= prin;
+      s.heloc += prin; s.port += prin;              // re-borrow & invest the conversion
+      if(avail > 0) s.port += avail;                // payoff-month overflow — never dropped
+      const hint = hRm*H0;                          // capitalize on start-of-month HELOC
+      s.heloc += hint; s.dedInt += hint;
+      if(s.mort <= 0.005){ s.mort = 0; if(s.payoffMonth==null) s.payoffMonth = -1; } // set at loop end
     } else {
-      // mortgage done: cashflow + dividends pay down HELOC/margin interest first, then principal
-      const hint = s.heloc*hRm + (s.margin||0)*mgR/12;
-      let cash = prepay - hint;
-      s.dedInt += hint;
-      if(cash>0){ const pd = Math.min(cash, s.heloc); s.heloc-=pd; cash-=pd; s.port += cash; }
-      else { s.heloc += -cash; s.dedInt += 0; } // shortfall capitalized
-      freed = 0; prepay = 0;
+      deployPostPayoff(s, cash, hRm*H0 + mgRm*mg0);
     }
-    if(freed>0){ s.heloc += freed; s.port += freed; }
     if(extraDraw>0){ s.heloc += extraDraw; s.port += extraDraw; }
-    // capitalize HELOC interest while mortgage active
-    if(s.mort>0){
-      const hint = s.heloc*hRm; s.heloc += hint; s.dedInt += hint;
-      if(s.margin!=null && mgOn===true && s===lvm){ /* handled below */ }
-    }
-    // margin overlay: top up to target % of portfolio; interest capitalized to margin
-    if(s===lvm){
-      const mint = s.margin*mgR/12; s.margin += mint; s.dedInt += mint;
-      const target = s.port*mgPct;
+    if(s===lvm){                                    // margin overlay
+      const mint = mgRm*mg0;
+      if(m0>0){ s.margin = mg0 + mint; s.dedInt += mint; } // capitalized while mortgage active
+      const target = s.port*(p.mgPct||0)/100;
       if(s.margin < target){ const add = target - s.margin; s.margin += add; s.port += add; }
     }
-    // dividend tax drag (cash divs were redeployed pre-tax above; charge tax from portfolio)
-    s.port -= div*divTax;
   };
+
   const dnMonth = s => {
-    const div = s.port*yM;
-    s.port *= (1+priceG);
-    stepMortgage(s);
-    s.port += extra + div*(1-divTax);              // invest extra + after-tax divs
+    const port0=s.port, m0=s.mort;
+    const divCash = port0*yM*(1-p.divTax/100);
+    s.port = port0*(1+priceG);
+    const cash = pay + p.extra + divCash;
+    if(m0 > 0){
+      const int = m0*iM;
+      let avail = cash - int;
+      const prin = Math.min(Math.max(avail - p.extra - divCash, 0), m0); // ONLY the payment amortizes
+      s.mort = m0 - prin;
+      s.port += cash - int - prin;                 // extra + divs (+ payoff-month overflow)
+      if(s.mort <= 0.005){ s.mort = 0; if(s.payoffMonth==null) s.payoffMonth = -1; }
+    } else {
+      s.port += cash;                              // freed payment invests here too
+    }
   };
 
   for(let mth=1; mth<=N; mth++){
-    dnMonth(dn); smMonth(ds,0); smMonth(lv,levMo); if(lvm) smMonth(lvm,levMo);
-    // annual tax refund on deductible interest → prepay/reborrow/invest (SM scenarios)
-    if(mth%12===0){
+    dnMonth(dn); smMonth(ds,0); smMonth(lv,p.levMo); if(lvm) smMonth(lvm,p.levMo);
+    if(mth%12===0){                                 // annual refund, SM scenarios only
       for(const s of [ds,lv,lvm]){ if(!s) continue;
-        const refund = s.dedInt*mtr; s.dedInt = 0;
-        if(s.mort>0){ const ap=Math.min(refund,s.mort); s.mort-=ap; s.heloc+=ap; s.port+=ap; }
-        else { const pd=Math.min(refund,s.heloc); s.heloc-=pd; s.port+= (refund-pd); }
+        const refund = s.dedInt*p.mtr/100; s.dedInt = 0;
+        if(refund<=0) continue;
+        if(s.mort>0){
+          const ap = Math.min(refund, s.mort);
+          s.mort -= ap; s.heloc += ap; s.port += ap; // prepay → re-borrow → invest
+          if(refund-ap>0) s.port += refund-ap;       // overflow invested
+          if(s.mort<=0.005){ s.mort=0; if(s.payoffMonth==null) s.payoffMonth=-1; }
+        } else if(p.postPolicy==='paydown'){
+          const pd = Math.min(refund, s.heloc); s.heloc-=pd; s.port += refund-pd;
+        } else s.port += refund;
       }
     }
-    const nw = s => s.port - s.heloc - (s.margin||0) - s.mort;
-    dn.series.push(nw(dn)); ds.series.push(nw(ds)); lv.series.push(nw(lv)); if(lvm) lvm.series.push(nw(lvm));
+    for(const s of [dn,ds,lv,lvm]){ if(!s) continue;
+      if(s.payoffMonth===-1){ s.payoffMonth = mth; s.netAtPayoff = nw(s); }
+      s.series.push(nw(s));
+    }
   }
-  return {dn, ds, lv, lvm, N};
+  return {dn, ds, lv, lvm, N, pay};
+}
+
+// Reads the form, hands percent-basis params to the engine.
+function runSim(){
+  const comp = $('sComp').value;
+  return simEngine({
+    P0:+$('sMort').value, mR:+$('sMRate').value,
+    iM: periodicRate(+$('sMRate').value, 12, comp),
+    amort:+$('sAmort').value, hR:+$('sHRate').value,
+    ret:+$('sRet').value, yld:+$('sYield').value,
+    mtr:+$('sMTR').value, divTax:+$('sDivTax').value,
+    extra:+$('sExtra').value, yrs:+$('sYears').value,
+    lump:+$('sLump').value, levMo:+$('sLevMo').value,
+    mgOn:$('sMgOn').value==='1', mgR:+$('sMgRate').value, mgPct:+$('sMgPct').value,
+    postPolicy:$('sPost').value
+  });
 }
 
 const SIM_REQUIRED = [
@@ -2335,16 +2495,30 @@ $('simRun').onclick = ()=>{
     ['Do nothing', r.dn], ['Debt swap (pure SM)', r.ds], ['Leveraged SM', r.lv],
     ...(r.lvm? [['Leveraged + margin', r.lvm]]:[])
   ];
-  $('simTable').innerHTML = '<tr><th>Strategy</th><th class="num">Portfolio</th><th class="num">Inv. debt</th><th class="num">Mortgage left</th><th class="num">Net position</th><th class="num">vs. do nothing</th></tr>'+
+  // Payoff reporting: schedule reference is do-nothing's payoff (or the
+  // contractual amortization if the horizon is shorter than the schedule).
+  const amortM = Math.round(+$('sAmort').value*12);
+  const refPayoff = r.dn.payoffMonth ?? amortM;
+  const yrsOf = m => (m/12).toFixed(1)+'y';
+  $('simTable').innerHTML = '<tr><th>Strategy</th><th class="num">Portfolio</th><th class="num">Inv. debt</th><th class="num">Mortgage left</th><th class="num">Net position</th><th class="num">vs. do nothing</th><th class="num">Mortgage-free</th><th class="num">Sooner by</th><th class="num">Net at payoff</th></tr>'+
     rows.map(([n,s])=>{ const adv = last(s)-last(r.dn);
+      const po = s.payoffMonth;
+      const saved = (po!=null && refPayoff>po) ? refPayoff-po : null;
       return `<tr><td>${n}</td><td class="num">${fmt$(s.port)}</td>
         <td class="num">${fmt$(s.heloc+(s.margin||0))}</td><td class="num">${fmt$(s.mort)}</td>
         <td class="num">${fmt$(last(s))}</td>
-        <td class="num ${adv>=0?'green':'red'}">${adv===0?'—':(adv>0?'+':'')+fmt$(adv)}</td></tr>`;}).join('');
+        <td class="num ${adv>=0?'green':'red'}">${adv===0?'—':(adv>0?'+':'')+fmt$(adv)}</td>
+        <td class="num">${po!=null?'yr '+yrsOf(po):'beyond horizon'}</td>
+        <td class="num ${saved?'green':''}">${saved?fmtMonths(saved):'—'}</td>
+        <td class="num">${s.netAtPayoff!=null?fmt$(s.netAtPayoff):'—'}</td></tr>`;}).join('');
   let verdict = '';
   const dsAdv = last(r.ds)-last(r.dn), lvAdv = last(r.lv)-last(r.dn);
-  verdict += `<p>Pure debt swap ends <b class="${dsAdv>=0?'green':'red'}">${fmt$(Math.abs(dsAdv))} ${dsAdv>=0?'ahead of':'behind'}</b> doing nothing on these assumptions. `;
-  verdict += `Adding leverage ${lvAdv>dsAdv?'improves':'worsens'} that by ${fmt$(Math.abs(lvAdv-dsAdv))}.</p>`;
+  verdict += `<p>Pure debt swap ends <b class="${dsAdv>=0?'green':'red'}">${fmt$(Math.abs(dsAdv))} ${dsAdv>=0?'ahead of':'behind'}</b> doing nothing on these assumptions`;
+  if(r.ds.payoffMonth!=null && refPayoff>r.ds.payoffMonth)
+    verdict += `, and is mortgage-free <b class="green">${fmtMonths(refPayoff-r.ds.payoffMonth)} sooner</b>`;
+  verdict += `. Adding leverage ${lvAdv>dsAdv?'improves':'worsens'} that by ${fmt$(Math.abs(lvAdv-dsAdv))}.</p>`;
+  if(r.ds.netAtPayoff!=null && r.ds.netAtPayoff<0)
+    verdict += `<p class="faint">Note the debt swap's net position at its own payoff date is ${fmt$(r.ds.netAtPayoff)} — payoff day converts the mortgage into an investment loan rather than eliminating debt; the wealth gap opens afterwards as the portfolio compounds past the HELOC.</p>`;
   if(r.lvm){
     const mgAdv = last(r.lvm)-last(r.lv);
     verdict += `<p><b>Margin overlay verdict:</b> vs. leveraged SM alone it ${
@@ -2352,7 +2526,7 @@ $('simRun').onclick = ()=>{
       mgAdv>0 ? `<b class="green">helps by ${fmt$(mgAdv)}</b>` : `<b class="red">hurts by ${fmt$(-mgAdv)}</b>`
     } at horizon — and that's before margin-call risk, which this model cannot price. A drawdown that forces selling can erase the entire advantage. If the edge above is thin, the honest answer is: not worth it.</p>`;
   }
-  verdict += `<p class="faint">Smooth-return model: real markets are volatile and leverage cuts both ways. If after-tax HELOC cost exceeds the mortgage rate, debt swap alone can lose to doing nothing — that's a feature of the math, not a bug in the tool.</p>`;
+  verdict += `<p class="faint">How this is modelled: every strategy deploys the <b>same out-of-pocket cash each month</b> — the mortgage payment plus your extra cashflow — so no strategy is penalized for paying off sooner; once a mortgage is gone, the freed payment keeps working per your freed-cashflow setting. Dividends are reinvested after tax in every scenario. HELOC interest is capitalized during the conversion and paid from cashflow after. Smooth-return model: real markets are volatile and leverage cuts both ways — if your after-tax borrowing cost exceeds your return, every leveraged strategy loses to doing nothing, and that's the math working, not failing.</p>`;
   $('simVerdict').innerHTML = verdict;
 };
 
