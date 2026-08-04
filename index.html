@@ -779,6 +779,8 @@ document.querySelectorAll('.navbtn').forEach(b=>{
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     $('view-'+b.dataset.view).classList.add('active');
+    // Charts can't paint while their view is hidden, so redraw on reveal.
+    if(b.dataset.view==='dash') renderDash();
   };
 });
 /* ---------- light/full mode ---------- */
@@ -1410,8 +1412,6 @@ function renderHelocs(){
         </div></div>
       <div class="grid g3" style="margin-bottom:.4rem">
         ${rateBlock}${limitBlock}
-        <div class="field"><label>Available room ${lim.dynamic?'<span class="tag gold" style="font-size:.6rem">auto</span>':''}</label>
-          <input disabled value="${roomAvail!=null?fmt$(roomAvail):'—'}"></div>
       </div>
       ${lim.dynamic && lim.detail ? `<p class="faint" style="margin:-.1rem 0 .5rem">Room grows as you pay down the mortgage: limit = <b>${lim.detail}</b> = ${fmt$(lim.limit)}. ${roomAvail!=null&&roomAvail<0?'<span class="red">You are over the derived limit.</span>':''}</p>`:''}
       ${h.limitMode==='readvanceable' && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV</span> to compute the re-advanceable limit. Max LTV is usually 65% for the revolving HELOC portion (or up to 80% of home value including your mortgage, depending on the product).</p>':''}
@@ -1421,6 +1421,9 @@ function renderHelocs(){
         `<p class="faint" style="margin:.2rem 0 .6rem">Effective rate = prime (set once, shared) + this line's delta. Prime changes flow through automatically. <span class="gold">${(S.primeHistory||[]).length?'':'Set prime in the panel above.'}</span></p>`}
       ${mixed?'<div class="disclaimer" style="margin-bottom:.7rem"><strong>Mixed use detected.</strong> This line has both deductible and non-deductible draws — interest must be prorated and the CRA hates fuzzy math. Strongly consider separate lines/sub-accounts.</div>':''}
       <div class="statgrid">
+        <div class="stat"><div class="v ${roomAvail!=null&&roomAvail<0?'red':''}">${roomAvail!=null?fmt$(roomAvail):'—'}</div>
+          <div class="l">Available room ${lim.dynamic?'<span class="tag gold" style="font-size:.6rem">auto</span>':''}</div></div>
+        <div class="stat"><div class="v">${lim.limit!=null?fmt$(lim.limit):'—'}</div><div class="l">Credit limit</div></div>
         <div class="stat"><div class="v">${fmt$(t.bal)}</div><div class="l">Balance</div></div>
         <div class="stat"><div class="v gold">${fmt$(t.dedBal)}</div><div class="l">Deductible balance</div></div>
         <div class="stat"><div class="v">${fmt$(t.capint)}</div><div class="l">Capitalized interest</div></div>
@@ -2358,6 +2361,11 @@ $('simRun').onclick = ()=>{
    ================================================================= */
 function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 function drawLines(cv, series){
+  // A canvas inside a hidden view reports clientWidth 0. Sizing to that wipes
+  // the bitmap and leaves the chart blank until something redraws it while
+  // visible — so bail out and let the view-switch handler redraw instead.
+  if(!cv || cv.clientWidth === 0){ cv && (cv.dataset.needsRedraw = '1'); return; }
+  delete cv.dataset.needsRedraw;
   const dpr = window.devicePixelRatio||1;
   const W = cv.clientWidth, H = cv.clientHeight||300;
   cv.width=W*dpr; cv.height=H*dpr;
