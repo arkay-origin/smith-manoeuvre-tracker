@@ -18,6 +18,24 @@ You can also just download `index.html` and run it offline. It works exactly the
 
 ---
 
+## How to use it
+
+**First-time setup**, in this order:
+
+1. **Mortgage** — principal, rate, compounding basis, start date. Compounding is required and has no default: semi-annual for most Canadian fixed mortgages, often monthly on variable. Your documents state it.
+2. **HELOC** — add your line with its rate basis and credit limit. If your room grows as you repay principal, choose a re-advanceable limit type.
+3. **Tax** — set your marginal rate so deductible interest and refund estimates work.
+
+**Each month:** record the prepayment on Mortgage, then the matching draw on HELOC tagged Investment — that offers the purchase dialog so the buy lands in the ledger linked to the draw. Prepay, re-borrow, invest.
+
+**At tax time:** the Tax tab totals deductible interest per year per line for Line 22100 and estimates the refund. Reconcile against your lender's statements before filing. Record where the refund went, then print the audit package and keep your statements behind it.
+
+Backfilling history? Enter events with their real dates in any order — the schedule and the ledger replay from dates, not entry order.
+
+Not sure the strategy suits you? The Simulator answers that before you commit to any bookkeeping.
+
+---
+
 ## What it does
 
 **Mortgage**
@@ -82,6 +100,20 @@ The tool deliberately has no default values for tax rate or compounding basis �
 ## Feedback
 
 Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues and feature requests are welcome.
+
+---
+
+## Changelog
+
+Dates are build dates; the live site always serves the newest.
+
+**2026-08-04** — Guided setup for new users and a "Using this tool" walkthrough. HELOC lines reorganised so metrics and entry come first, setup collapses once configured. Full amortization schedule renders a window with an expander instead of every row. Accessibility pass: current-tab state, labelled controls, better light-mode contrast. Build number added.
+
+**2026-08-02** — Simulator rebuilt on an equal-cash principle: every strategy deploys the same out-of-pocket cash each month, so none is penalised for paying off sooner. Fixes three defects that made the debt swap look worse than doing nothing. Results now report mortgage-free date, time saved, and net position at each strategy's own payoff. New setting for what freed cashflow does after payoff. Entries can be edited in place across prepayments, HELOC transactions, and the investment ledger.
+
+**2026-08-01** — Re-advanceable HELOC limits: derive from home value and LTV, or track a sub-account's opening room plus its share of principal repaid. Draws warn when they exceed available room. Investment ledger shows each transaction's source and links both ways, with cascading deletes. Live totals in the transaction dialog. Printable audit package pagination fixed.
+
+**2026-07-31** — Light and dark themes. Break-even quick check in the Simulator. Per-event detail drawer showing before, change and after for every transaction. Payment frequency changes mid-mortgage. Time remaining and time saved metrics.
 
 ---
 

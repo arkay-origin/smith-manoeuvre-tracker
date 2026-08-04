@@ -41,7 +41,7 @@
 /* Light theme — same ledger identity (gold + serif), on warm paper */
 [data-theme="light"]{
   --ink:#F3F0E9; --panel:#FFFFFF; --panel2:#F8F5EE; --line:#DCD5C5;
-  --text:#272B33; --muted:#5C6878; --faint:#8B94A2;
+  --text:#272B33; --muted:#4F5A69; --faint:#6B7585;
   --gold:#9C731F; --gold-dim:#C7A75B; --red:#B0453A; --red-dim:#D9A79E;
   --green:#22754F; --blue:#2B66A3; --warn-bg:#F6ECD4; --warn-text:#6E5A25;
   --input-bg:#FDFCF9; --primary-text:#FFFDF6;
@@ -125,7 +125,8 @@ tr:hover td{background:rgba(228,182,88,.04)}
 #filebar{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--line)}
 #filebar button{width:100%;font-size:.82rem;padding:.4rem .6rem}
 #savestate{font-size:.72rem;color:var(--faint);margin-top:.4rem;text-align:center}
-#support{margin-top:.9rem;padding-top:.8rem;border-top:1px solid var(--line);text-align:center}
+#version{margin-top:.7rem;text-align:center;font-size:.66rem;color:var(--faint);letter-spacing:.04em}
+#support{margin-top:.5rem;padding-top:.8rem;border-top:1px solid var(--line);text-align:center}
 #support a{display:inline-block;font-size:.82rem;color:var(--gold);text-decoration:none;
   border:1px solid var(--gold-dim);border-radius:999px;padding:.35rem .8rem;transition:background .15s}
 #support a:hover{background:var(--panel2)}
@@ -172,6 +173,14 @@ canvas.chart{width:100%;height:300px;background:var(--panel2);border:1px solid v
 .modewrap button:last-child{border-radius:0 99px 99px 0;padding-right:.95rem}
 .modewrap button:only-child{border-radius:99px}
 .modewrap button.on{background:var(--gold);color:var(--primary-text);font-weight:600}
+.steps{margin:.4rem 0 .6rem 1.1rem;display:flex;flex-direction:column;gap:.55rem}
+.steps li{padding-left:.2rem}
+.steps li button{margin-left:.5rem;vertical-align:baseline}
+.cycle span[role="link"]{cursor:pointer;text-decoration:underline;text-decoration-color:var(--gold-dim);
+  text-underline-offset:3px;border-radius:4px}
+.cycle span[role="link"]:hover{color:var(--gold)}
+.cycle span[role="link"]:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+details.linecfg{margin:.2rem 0 .8rem}
 details{margin-bottom:.7rem;border:1px solid var(--line);border-radius:8px;padding:.55rem .8rem;background:var(--panel2)}
 summary{cursor:pointer;color:var(--gold);font-family:var(--serif)}
 details[open] summary{margin-bottom:.5rem}
@@ -224,6 +233,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
+  <div id="version" class="noprint">Build 2026-08-04</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -259,10 +269,28 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
       <span><span class="tag gold">Deductible</span> <span id="lgdd" class="num">$0</span></span>
     </div>
     <div class="cycle noprint">
-      <span>Pay mortgage</span><span class="arr">→</span><span>Re-borrow HELOC</span><span class="arr">→</span>
-      <span>Invest</span><span class="arr">→</span><span>Dividends &amp; refund</span><span class="arr">→</span>
-      <span>Prepay</span><span class="arr">↺</span>
+      <span role="link" tabindex="0" data-goto="mortgage">Pay mortgage</span><span class="arr">→</span>
+      <span role="link" tabindex="0" data-goto="heloc">Re-borrow HELOC</span><span class="arr">→</span>
+      <span role="link" tabindex="0" data-goto="invest">Invest</span><span class="arr">→</span>
+      <span role="link" tabindex="0" data-goto="tax">Dividends &amp; refund</span><span class="arr">→</span>
+      <span role="link" tabindex="0" data-goto="mortgage">Prepay</span><span class="arr">↺</span>
     </div>
+  </div>
+
+  <div class="card noprint" id="startHere" style="display:none">
+    <h2>Start here</h2>
+    <p class="faint">Four steps, in this order. Each one feeds the next.</p>
+    <ol class="steps">
+      <li><b>Set up your mortgage</b> — principal, rate, compounding basis, start date.
+        <button class="small" data-goto="mortgage">Go to Mortgage</button></li>
+      <li><b>Add your HELOC line</b> — rate basis and credit limit. Use a re-advanceable limit type if your room grows as you repay principal.
+        <button class="small" data-goto="heloc">Go to HELOC</button></li>
+      <li><b>Record draws as you make them</b>, tagged by purpose. An investment draw offers to log the purchase in the same step.
+        <button class="small" data-goto="heloc">Go to HELOC</button></li>
+      <li><b>Set your marginal tax rate</b> so deductible interest and refund estimates work.
+        <button class="small" data-goto="tax">Go to Tax</button></li>
+    </ol>
+    <p class="faint">Not sure the strategy is worth it for you? The <b>Simulator</b> answers that before you commit to any of this. Full walkthrough lives under <b>Audit &amp; Guide</b>.</p>
   </div>
 
   <div class="statgrid" id="dashStats"></div>
@@ -283,7 +311,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <div class="scrollx" style="margin-top:.8rem"><table id="lyTable"></table></div>
   </div>
 
-  <div class="card"><h2>Net position</h2><canvas id="dashChart" class="chart" height="300"></canvas>
+  <div class="card"><h2>Net position</h2><canvas id="dashChart" class="chart" height="300" role="img" aria-label="Portfolio value versus total debt over time"></canvas>
   <p class="faint" style="margin-top:.4rem" id="dashChartNote"></p></div>
 </section>
 
@@ -542,7 +570,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     </details>
     <button class="primary" id="simRun">Run simulation</button>
   </div>
-  <div class="card"><canvas id="simChart" class="chart" height="300"></canvas></div>
+  <div class="card"><canvas id="simChart" class="chart" height="300" role="img" aria-label="Projected net position by strategy over time"></canvas></div>
   <div class="card"><h2>Results at horizon</h2><div class="scrollx"><table id="simTable"></table></div>
     <div id="simVerdict" style="margin-top:.8rem"></div></div>
 </section>
@@ -559,6 +587,16 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   </div>
   <div class="card noprint">
     <h2>Record-keeping guide <span class="faint" style="font-size:.72rem;text-transform:none">— reference only, not included in the printed package</span></h2>
+    <details><summary>Using this tool — first-time setup</summary>
+      <p>Mortgage first: principal, rate, compounding basis, start date. Compounding is required and has no default — semi-annual for most Canadian fixed mortgages, often monthly on variable. Your documents state it.</p>
+      <p>Then add your HELOC line with its rate basis and limit. If your room grows as you repay principal, pick a re-advanceable limit type. Then set your marginal tax rate on the Tax tab so deductible interest and refund estimates work.</p>
+      <p>Backfilling history? Enter events with their real dates in any order — the schedule and the ledger both replay from dates, not entry order.</p></details>
+    <details><summary>Using this tool — a typical month</summary>
+      <p>Record the prepayment on <b>Mortgage</b>, tagged with its source. Record the matching draw on <b>HELOC</b>, tagged Investment — that offers the purchase dialog so the buy lands in the ledger linked to the draw. If you paid HELOC interest in cash rather than capitalizing it, record that as a principal payment.</p>
+      <p>That's the loop: prepay, re-borrow, invest. The Dashboard conversion bar moves each time you complete one.</p></details>
+    <details><summary>Using this tool — at tax time</summary>
+      <p>The <b>Tax</b> tab totals deductible interest per year per line for Line 22100, and estimates the refund at your marginal rate. Reconcile it against your lender's statements before filing — the tool's figure is a daily-accrual estimate, and the statements govern.</p>
+      <p>Record where the refund went under Refund deployment; it can create the matching prepayment, HELOC payment, or purchase for you. Print the audit package from <b>Audit &amp; Guide</b> and keep your statements behind it.</p></details>
     <details open><summary>What the CRA actually wants</summary>
       <p>A clean, traceable flow: HELOC draw → dedicated chequing (optional but tidy) → non-registered investment account. Never mix personal spending into the SM credit line. Keep statements at least six years. One experienced filer's approach: once a year download 12 months of HELOC interest, SM chequing, and SM investment statements — that alone satisfies most reviews.</p></details>
     <details><summary>Capitalizing interest</summary>
@@ -664,6 +702,7 @@ const BLANK = () => ({
 });
 let S = BLANK();
 let schedView = 'yearly';
+let schedShowAll = false;
 let txView = 'all';
 let fileHandle = null;
 let dirty = false;
@@ -792,11 +831,27 @@ $('btnWipe').onclick = ()=>{
 window.addEventListener('beforeunload', e => { if(dirty){ e.preventDefault(); e.returnValue=''; } });
 
 /* ---------- navigation ---------- */
+// Any element carrying data-goto navigates to that tab (cycle strip, Start here).
+function gotoTab(view){
+  const btn = document.querySelector(`.navbtn[data-view="${view}"]`);
+  if(btn) btn.click();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.addEventListener('click', e=>{
+  const el = e.target.closest('[data-goto]');
+  if(el){ e.preventDefault(); gotoTab(el.dataset.goto); }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Enter' && e.key!==' ') return;
+  const el = e.target.closest('.cycle [data-goto]');
+  if(el){ e.preventDefault(); gotoTab(el.dataset.goto); }
+});
+
 document.querySelectorAll('.navbtn').forEach(b=>{
   b.onclick = ()=>{
-    document.querySelectorAll('.navbtn').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.navbtn').forEach(x=>{ x.classList.remove('active'); x.removeAttribute('aria-current'); });
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
+    b.classList.add('active'); b.setAttribute('aria-current','page');
     $('view-'+b.dataset.view).classList.add('active');
     // Charts can't paint while their view is hidden, so redraw on reveal.
     if(b.dataset.view==='dash') renderDash();
@@ -1123,9 +1178,8 @@ function renderMortgage(){
   if(st && st.payoffDelta && st.meta.paidOff && st.payoffDelta.months!==0){
     const d = st.payoffDelta;
     extra += `<div class="callout" style="margin-top:.8rem">
-      <b>Payoff timing:</b> projected ${st.payoff} vs. the original ${Math.round(M.amortYears)}-year term ending ${d.origEnd} —
-      <b class="${d.months>0?'green':'red'}">${d.months>0?fmtMonths(d.months)+' ahead of':fmtMonths(-d.months)+' behind'} schedule</b>.
-      ${d.months>0?'Prepayments, accelerated frequency, and higher payments all pull this in.':'Lower payments or negative amortization push this out.'}</div>`;
+      <b>Payoff timing:</b> ${st.payoff} vs. the original ${Math.round(M.amortYears)}-year term ending ${d.origEnd} —
+      <b class="${d.months>0?'green':'red'}">${d.months>0?fmtMonths(d.months)+' ahead of':fmtMonths(-d.months)+' behind'} schedule</b>.</div>`;
   }
   $('mCompare').innerHTML = extra;
   // frequency change table
@@ -1134,7 +1188,7 @@ function renderMortgage(){
     '<tr><th>Effective date</th><th>Frequency</th><th></th></tr>' +
     fcs.map(c=>{ const idx=M.freqChanges.indexOf(c);
       return `<tr><td>${c.date}</td><td><span class="tag blue">${freqLabel(c.freq)}</span></td>
-      <td><button class="small danger" onclick="delFC(${idx})">×</button></td></tr>`; }).join('')
+      <td><button class="small danger" onclick="delFC(${idx})" aria-label="Delete frequency change" title="Delete frequency change">×</button></td></tr>`; }).join('')
     : '<tr><td class="empty">No frequency changes recorded.</td></tr>';
   // rate change table
   const rcsSorted = [...M.rateChanges].sort((a,b)=>a.date.localeCompare(b.date));
@@ -1143,7 +1197,7 @@ function renderMortgage(){
     rcsSorted.map(r=>{ const i=M.rateChanges.indexOf(r);
       return `<tr><td>${r.date}</td><td class="num">${r.rate}</td>
       <td class="faint">${r.compounding?compLabel(r.compounding):'—'}</td>
-      <td><button class="small danger" onclick="delRC(${i})">×</button></td></tr>`;}).join('')
+      <td><button class="small danger" onclick="delRC(${i})" aria-label="Delete rate change" title="Delete rate change">×</button></td></tr>`;}).join('')
     : '<tr><td class="empty">No rate changes recorded.</td></tr>';
   // payment change table
   const pcs = [...(M.paymentChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
@@ -1160,14 +1214,18 @@ function renderMortgage(){
     ppsSorted.map(r=>{ const i=M.prepayments.indexOf(r);
       return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
       <td><span class="tag blue">${esc(r.source)}</span></td><td class="faint">${esc(r.note)}</td>
-      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editPP(${i})">Edit</button><button class="small danger" onclick="delPP(${i})">×</button></td></tr>`;}).join('')
+      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editPP(${i})">Edit</button><button class="small danger" onclick="delPP(${i})" aria-label="Delete prepayment" title="Delete prepayment">×</button></td></tr>`;}).join('')
     : '<tr><td class="empty">No prepayments recorded. Prepay → re-borrow → invest is the whole engine.</td></tr>';
   // schedule — yearly rollup or full per-payment detail
   const t = $('mSched');
   if(!rows){ t.innerHTML='<tr><td class="empty">No schedule yet.</td></tr>'; return; }
   if(schedView==='full'){
-    const evs = rows.filter(r=>r.type!=='pay'||true); // all rows, chronological
-    const body = rows.map(r=>{
+    // Accelerated weekly over 30 years is ~1,500 rows, rebuilt on every edit.
+    // Show a window by default and let the user ask for the rest.
+    const CAP = 240;
+    const shown = schedShowAll ? rows : rows.slice(0, CAP);
+    const hidden = rows.length - shown.length;
+    const body = shown.map(r=>{
       if(r.type==='pay') return `<tr><td>${r.date}</td><td><span class="faint">${freqLabel(r.freq)}</span>${r.neg?' <span class="tag red">neg</span>':''}${r.custom?' <span class="tag gold">custom</span>':''}</td>
         <td class="num red">${fmt$2(r.interest)}</td><td class="num ${r.principal<0?'red':''}">${fmt$2(r.principal)}</td>
         <td class="num">${fmt$2(r.pay)}</td><td class="num">${fmt$(r.bal)}</td></tr>`;
@@ -1177,7 +1235,10 @@ function renderMortgage(){
       if(r.type==='freq') return `<tr><td>${r.date}</td><td colspan="4"><span class="tag blue">${esc(r.note)}</span></td><td class="num">${fmt$(r.bal)}</td></tr>`;
       return '';
     }).join('');
-    t.innerHTML = '<tr><th>Date</th><th>Event</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Payment</th><th class="num">Balance</th></tr>'+body;
+    t.innerHTML = '<tr><th>Date</th><th>Event</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Payment</th><th class="num">Balance</th></tr>'+body
+      + (hidden>0 ? `<tr><td colspan="6" class="empty">${hidden.toLocaleString()} more rows — <button class="small" id="schedMore">show the full schedule</button> or export CSV.</td></tr>` : '');
+    const moreBtn = $('schedMore');
+    if(moreBtn) moreBtn.onclick = ()=>{ schedShowAll = true; renderMortgage(); };
   } else {
     const byYear = {};
     rows.forEach(r=>{ const y=r.date.slice(0,4); (byYear[y]=byYear[y]||{int:0,prin:0,pre:0,end:0,neg:false}).end=r.bal;
@@ -1216,7 +1277,7 @@ $('fcAdd').onclick = ()=>{
   S.mortgage.freqChanges.sort((a,b)=>a.date.localeCompare(b.date));
   touch();
 };
-$('schedYearly').onclick = ()=>{ schedView='yearly'; $('schedYearly').classList.add('on'); $('schedFull').classList.remove('on'); renderMortgage(); };
+$('schedYearly').onclick = ()=>{ schedView='yearly'; schedShowAll=false; $('schedYearly').classList.add('on'); $('schedFull').classList.remove('on'); renderMortgage(); };
 $('schedFull').onclick  = ()=>{ schedView='full';  $('schedFull').classList.add('on'); $('schedYearly').classList.remove('on'); renderMortgage(); };
 
 // Every mortgage configuration field commits as you change it — the same
@@ -1423,22 +1484,18 @@ function renderHelocs(){
          <div class="field"><label>Share of principal repaid %</label><input type="number" step="1" value="${h.growShare??100}" placeholder="100" onchange="setHeloc(${hi},'growShare',this.value===''?100:+this.value)"></div>`
       : limitSel('fixed') +
         `<div class="field"><label>Credit limit $</label><input type="number" step="0.01" value="${h.limit??''}" onchange="setHeloc(${hi},'limit',this.value===''?null:+this.value)"></div>`;
+    // Configuration is set once; draws are the recurring action. Same ordering
+    // principle as the Mortgage tab: metrics and entry first, setup collapsed.
+    const cfgReady = (h.rateMode==='prime' ? h.delta!=null : (h.rateHistory||[]).length>0)
+      && lim.limit != null;
     return `<div class="card">
       <div class="spread"><h2>${esc(h.name)}</h2>
         <div class="row">
           <button class="small" onclick="renameHeloc(${hi})">Rename</button>
           <button class="small danger" onclick="delHeloc(${hi})">Delete line</button>
         </div></div>
-      <div class="grid g3" style="margin-bottom:.4rem">
-        ${rateBlock}${limitBlock}
-      </div>
-      ${lim.dynamic && lim.detail ? `<p class="faint" style="margin:-.1rem 0 .5rem">Room grows as you pay down the mortgage: limit = <b>${lim.detail}</b> = ${fmt$(lim.limit)}. ${roomAvail!=null&&roomAvail<0?'<span class="red">You are over the derived limit.</span>':''}</p>`:''}
-      ${h.limitMode==='readvanceable' && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV</span> to compute the re-advanceable limit. Max LTV is usually 65% for the revolving HELOC portion (or up to 80% of home value including your mortgage, depending on the product).</p>':''}
-      ${h.limitMode==='grow' && h.initialRoom==null ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter this line\'s opening room</span> — the limit it started with. Principal you repay on the mortgage is then added to it. Use this when your global HELOC limit is split across sub-accounts (e.g. a personal line and an SM line), since a home-value/LTV figure would capture the whole limit, not just this line.</p>':''}
-      ${h.limitMode==='grow' && growModeCount>1 ? '<div class="disclaimer" style="margin-bottom:.7rem"><strong>More than one line grows with principal.</strong> Each line is crediting its own share of the same mortgage principal — set the shares so they total 100% or you will overstate your room.</div>':''}
-      ${h.rateMode==='fixed' ? rateHistoryEditor(h,hi) :
-        `<p class="faint" style="margin:.2rem 0 .6rem">Effective rate = prime (set once, shared) + this line's delta. Prime changes flow through automatically. <span class="gold">${(S.primeHistory||[]).length?'':'Set prime in the panel above.'}</span></p>`}
       ${mixed?'<div class="disclaimer" style="margin-bottom:.7rem"><strong>Mixed use detected.</strong> This line has both deductible and non-deductible draws — interest must be prorated and the CRA hates fuzzy math. Strongly consider separate lines/sub-accounts.</div>':''}
+      ${h.limitMode==='grow' && growModeCount>1 ? '<div class="disclaimer" style="margin-bottom:.7rem"><strong>More than one line grows with principal.</strong> Each line credits its own share of the same mortgage principal — set the shares to total 100% or you will overstate your room.</div>':''}
       <div class="statgrid">
         <div class="stat"><div class="v ${roomAvail!=null&&roomAvail<0?'red':''}">${roomAvail!=null?fmt$(roomAvail):'—'}</div>
           <div class="l">Available room ${lim.dynamic?'<span class="tag gold" style="font-size:.6rem">auto</span>':''}</div></div>
@@ -1448,6 +1505,17 @@ function renderHelocs(){
         <div class="stat"><div class="v">${fmt$(t.capint)}</div><div class="l">Capitalized interest</div></div>
         <div class="stat"><div class="v">${fmt$(t.paid)}</div><div class="l">Principal repaid</div></div>
       </div>
+      <details class="linecfg" ${cfgReady?'':'open'}>
+        <summary>Line setup — rate basis, credit limit${h.rateMode==='fixed'?', rate history':''}</summary>
+        <div class="grid g3" style="margin-bottom:.4rem">
+          ${rateBlock}${limitBlock}
+        </div>
+        ${lim.dynamic && lim.detail ? `<p class="faint" style="margin:-.1rem 0 .5rem">Room grows as you pay down the mortgage: limit = <b>${lim.detail}</b> = ${fmt$(lim.limit)}. ${roomAvail!=null&&roomAvail<0?'<span class="red">You are over the derived limit.</span>':''}</p>`:''}
+        ${h.limitMode==='readvanceable' && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV.</span> Max LTV is usually 65% for the revolving portion, or up to 80% including your mortgage — check your product.</p>':''}
+        ${h.limitMode==='grow' && h.initialRoom==null ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter this line\'s opening room.</span> Mortgage principal you repay is added to it. Use this when one global limit is split across sub-accounts — an LTV figure would capture the whole limit, not just this line.</p>':''}
+        ${h.rateMode==='fixed' ? rateHistoryEditor(h,hi) :
+          `<p class="faint" style="margin:.2rem 0 .6rem">Effective rate = prime (set once, shared) + this line's delta. Prime changes flow through automatically. <span class="gold">${(S.primeHistory||[]).length?'':'Set prime in the panel above.'}</span></p>`}
+      </details>
       <h3>Record a transaction</h3>
       <div class="grid g3">
         <div class="field"><label>Date</label><input type="date" id="hd-date-${hi}" value="${today()}"></div>
@@ -1457,7 +1525,7 @@ function renderHelocs(){
       </div>
       <div class="field"><label>Note</label><input type="text" id="hd-note-${hi}" placeholder="e.g. bought 120 VDY @ 46.10, order #…"></div>
       <div class="row"><button class="primary" onclick="addDraw(${hi})">Add transaction</button></div>
-      <p class="faint" style="margin-top:.4rem"><span class="green">Recording an <b>Investment</b> draw opens the Add Transaction dialog</span> so the purchase lands in the investment ledger and is linked back to this draw's note. Press Cancel there if you'd rather log the buy later.</p>
+      <p class="faint" style="margin-top:.4rem"><span class="green">An <b>Investment</b> draw opens the purchase dialog</span>, linked back to this draw. Cancel there to log the buy later.</p>
       <div class="scrollx" style="margin-top:.8rem"><table>${
         h.draws.length||h.payments.length ?
         '<tr><th>Date</th><th>Type</th><th class="num">Amount</th><th>Note</th><th></th></tr>' +
@@ -1466,10 +1534,10 @@ function renderHelocs(){
           .map(r=> r.kind==='draw'
             ? `<tr><td>${r.d.date}</td><td><span class="tag ${PURPOSES[r.d.purpose]?.cls||'red'}">${PURPOSES[r.d.purpose]?.label||r.d.purpose}</span></td>
                <td class="num">${fmt$2(r.d.amount)}</td><td class="faint">${esc(r.d.note)}</td>
-               <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editDraw(${hi},${r.di})">Edit</button><button class="small danger" onclick="delDraw(${hi},${r.di})">×</button></td></tr>`
+               <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editDraw(${hi},${r.di})">Edit</button><button class="small danger" onclick="delDraw(${hi},${r.di})" aria-label="Delete draw" title="Delete draw">×</button></td></tr>`
             : `<tr><td>${r.d.date}</td><td><span class="tag green">Principal payment</span></td>
                <td class="num">−${fmt$2(r.d.amount).replace('−','')}</td><td class="faint">${esc(r.d.note)}</td>
-               <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editHPay(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHPayRow(${hi},${r.di})">×</button></td></tr>`).join('')
+               <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editHPay(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHPayRow(${hi},${r.di})" aria-label="Delete principal payment" title="Delete principal payment">×</button></td></tr>`).join('')
         : '<tr><td class="empty">No activity on this line yet.</td></tr>'
       }</table></div>
     </div>`;
@@ -1492,7 +1560,7 @@ window.addDraw = hi=>{
       const room = lim.limit - helocTotals(h).bal;
       if(amt > room + 0.005){
         const over = amt - room;
-        if(!confirm(`This draw exceeds the available room on ${h.name}.\n\n`
+        if(!confirm(`Over the available room on ${h.name}.\n\n`
           + `Available: ${fmt$2(room)}\nThis draw: ${fmt$2(amt)}\nOver by: ${fmt$2(over)}\n\n`
           + `Record it anyway?`)) return;
       }
@@ -1710,7 +1778,7 @@ function renderInvest(){
       <td class="num">${t.price!=null?fmt$2(t.price):'—'}</td>
       <td class="num">${t.amount!=null?fmt$2(t.amount):(t.qty&&t.price)?fmt$2(t.qty*t.price):'—'}</td>
       <td class="faint">${esc(t.note)}</td>
-      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small" onclick="editTx('${t.id}')">Edit</button><button class="small danger" onclick="delTx('${t.id}')">×</button></td></tr>`;
+      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small" onclick="editTx('${t.id}')">Edit</button><button class="small danger" onclick="delTx('${t.id}')" aria-label="Delete transaction" title="Delete transaction">×</button></td></tr>`;
   const headRow = withSym => `<tr><th>Date</th><th>Type</th><th>Source</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th></th></tr>`;
   if(!sorted.length){
     $('txWrap').innerHTML = '<table><tr><td class="empty">Empty ledger.</td></tr></table>';
@@ -1912,9 +1980,9 @@ function txUpdateTotal(){
     const over = total - avail;
     html += ` <span class="faint">of ${fmt$2(avail)} available</span> <span class="faint">(${esc(pendingTxLink.label||'linked')})</span>`;
     if(over > 0.005){
-      html += `<br><span class="red">${fmt$2(over)} more than the linked amount</span> — the excess is personal capital, not borrowed. That portion's interest isn't deductible, and it dilutes the borrowed share of this holding.`;
+      html += `<br><span class="red">${fmt$2(over)} over the linked amount</span> — that excess is personal capital, so its share of this holding isn't deductible.`;
     } else if(over < -0.005){
-      html += `<br><span class="faint">${fmt$2(-over)} of the linked amount not yet invested.</span>`;
+      html += `<br><span class="faint">${fmt$2(-over)} still uninvested.</span>`;
     }
   }
   box.innerHTML = html;
@@ -2143,8 +2211,8 @@ function rdSyncFields(){
   $('rdLinkHint').innerHTML = canLink
     ? (rdAutoLink
         ? `<span class="green">${to==='More investments'
-            ? 'The Add Transaction dialog will open so the purchase lands in the investment ledger, linked to this refund.'
-            : `A matching ${to==='Mortgage prepayment'?'prepayment on the Mortgage tab':'principal payment on the chosen HELOC line'} will be created automatically, dated below.`}</span>`
+            ? 'Opens the purchase dialog, linked to this refund.'
+            : `Creates the matching ${to==='Mortgage prepayment'?'prepayment':'HELOC payment'}, dated below.`}</span>`
         : 'Logged here only — no entry added elsewhere.')
     : '';
 }
@@ -2191,7 +2259,7 @@ function renderRefunds(){
     S.refunds.map((r,i)=>`<tr><td class="num">${r.year}</td><td class="num green">${fmt$2(r.amount)}</td>
       <td><span class="tag ${r.to==='Spent / other'?'red':'gold'}">${esc(r.to)}</span></td>
       <td>${r.linked?`<span class="tag green">${r.linked.kind==='prepay'?'prepayment':r.linked.kind==='invest'?'investment buy':'HELOC payment'}</span>`:'<span class="faint">—</span>'}</td>
-      <td class="faint">${esc(r.note)}</td><td><button class="small danger" onclick="delRefund(${i})">×</button></td></tr>`).join('')
+      <td class="faint">${esc(r.note)}</td><td><button class="small danger" onclick="delRefund(${i})" aria-label="Delete refund record" title="Delete refund record">×</button></td></tr>`).join('')
     : '<tr><td class="empty">No refunds recorded.</td></tr>';
 }
 window.delRefund = i => {
@@ -2526,7 +2594,7 @@ $('simRun').onclick = ()=>{
       mgAdv>0 ? `<b class="green">helps by ${fmt$(mgAdv)}</b>` : `<b class="red">hurts by ${fmt$(-mgAdv)}</b>`
     } at horizon — and that's before margin-call risk, which this model cannot price. A drawdown that forces selling can erase the entire advantage. If the edge above is thin, the honest answer is: not worth it.</p>`;
   }
-  verdict += `<p class="faint">How this is modelled: every strategy deploys the <b>same out-of-pocket cash each month</b> — the mortgage payment plus your extra cashflow — so no strategy is penalized for paying off sooner; once a mortgage is gone, the freed payment keeps working per your freed-cashflow setting. Dividends are reinvested after tax in every scenario. HELOC interest is capitalized during the conversion and paid from cashflow after. Smooth-return model: real markets are volatile and leverage cuts both ways — if your after-tax borrowing cost exceeds your return, every leveraged strategy loses to doing nothing, and that's the math working, not failing.</p>`;
+  verdict += `<p class="faint">Every strategy deploys the <b>same out-of-pocket cash each month</b> — payment plus your extra — so none is penalised for paying off sooner; a freed payment keeps working per your freed-cashflow setting. Dividends reinvest after tax throughout. Returns are modelled smooth: real markets are volatile and leverage cuts both ways. If your after-tax borrowing cost exceeds your return, every leveraged strategy loses to doing nothing — that's the math working, not failing.</p>`;
   $('simVerdict').innerHTML = verdict;
 };
 
@@ -2580,6 +2648,9 @@ function drawLines(cv, series){
    DASHBOARD
    ================================================================= */
 function renderDash(){
+  // "Start here" shows only while there is genuinely nothing set up yet.
+  const isEmpty = !S.mortgage.principal && !S.helocs.length && !S.tx.length && !S.lightYears.length;
+  const sh = $('startHere'); if(sh) sh.style.display = isEmpty ? '' : 'none';
   // deductible vs non-deductible debt today
   let dd=0, nd=0, portVal=null, dashMortStat=null;
   if(S.mode==='light' && S.lightYears.length){
