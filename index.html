@@ -165,8 +165,11 @@ canvas.chart{width:100%;height:300px;background:var(--panel2);border:1px solid v
 /* Segmented pill. align-self:start stops it stretching to fill a flex-column
    .field parent, which would leave an empty stub inside the rounded border.
    The buttons share the wrapper's radius so the active fill follows the curve. */
-.actcell{display:flex;gap:.3rem;flex-wrap:nowrap;justify-content:flex-end;align-items:center}
-th.actcell,td.actcell{text-align:right}
+/* Action columns (edit/delete) align right across every table. Kept as normal
+   table cells — display:flex on a <td> drops table-cell semantics and lets the
+   column drift out of line with its header. */
+th.actcell,td.actcell{text-align:right;white-space:nowrap;width:1%}
+td.actcell button{margin-left:.3rem;vertical-align:middle}
 .modewrap{display:inline-flex;align-self:start;width:fit-content;flex:0 0 auto;
   border:1px solid var(--line);border-radius:99px;overflow:hidden}
 .modewrap button{border:none;border-radius:0;background:none;padding:.35rem .8rem;
@@ -895,11 +898,11 @@ $('lyAdd').onclick = ()=>{
 function renderLight(){
   const t = $('lyTable');
   if(!S.lightYears.length){ t.innerHTML='<tr><td class="empty">No annual summaries yet.</td></tr>'; return; }
-  t.innerHTML = '<tr><th>Year</th><th class="num">Deductible interest</th><th class="num">Inv. HELOC</th><th class="num">Mortgage</th><th class="num">Portfolio</th><th class="num">Dividends</th><th>Note</th><th></th></tr>' +
+  t.innerHTML = '<tr><th>Year</th><th class="num">Deductible interest</th><th class="num">Inv. HELOC</th><th class="num">Mortgage</th><th class="num">Portfolio</th><th class="num">Dividends</th><th>Note</th><th class="actcell"></th></tr>' +
     S.lightYears.map((r,i)=>`<tr><td class="num">${r.year}</td><td class="num">${fmt$2(r.interest)}</td>
       <td class="num">${fmt$(r.heloc)}</td><td class="num">${fmt$(r.mort)}</td><td class="num">${fmt$(r.port)}</td>
       <td class="num">${fmt$2(r.div)}</td><td class="faint">${esc(r.note)}</td>
-      <td><button class="small danger" onclick="delLightYear(${i})">×</button></td></tr>`).join('');
+      <td class="actcell"><button class="small danger" onclick="delLightYear(${i})" aria-label="Delete annual summary" title="Delete annual summary">×</button></td></tr>`).join('');
 }
 window.delLightYear = i => { S.lightYears.splice(i,1); touch(); };
 /* =================================================================
@@ -1191,32 +1194,32 @@ function renderMortgage(){
   // frequency change table
   const fcs = [...(M.freqChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
   $('fcTable').innerHTML = fcs.length ?
-    '<tr><th>Effective date</th><th>Frequency</th><th></th></tr>' +
+    '<tr><th>Effective date</th><th>Frequency</th><th class="actcell"></th></tr>' +
     fcs.map(c=>{ const idx=M.freqChanges.indexOf(c);
       return `<tr><td>${c.date}</td><td><span class="tag blue">${freqLabel(c.freq)}</span></td>
-      <td><button class="small danger" onclick="delFC(${idx})" aria-label="Delete frequency change" title="Delete frequency change">×</button></td></tr>`; }).join('')
+      <td class="actcell"><button class="small danger" onclick="delFC(${idx})" aria-label="Delete frequency change" title="Delete frequency change">×</button></td></tr>`; }).join('')
     : '<tr><td class="empty">No frequency changes recorded.</td></tr>';
   // rate change table
   const rcsSorted = [...M.rateChanges].sort((a,b)=>a.date.localeCompare(b.date));
   $('rcTable').innerHTML = rcsSorted.length ?
-    '<tr><th>Date</th><th class="num">Rate %</th><th>Compounding</th><th></th></tr>' +
+    '<tr><th>Date</th><th class="num">Rate %</th><th>Compounding</th><th class="actcell"></th></tr>' +
     rcsSorted.map(r=>{ const i=M.rateChanges.indexOf(r);
       return `<tr><td>${r.date}</td><td class="num">${r.rate}</td>
       <td class="faint">${r.compounding?compLabel(r.compounding):'—'}</td>
-      <td><button class="small danger" onclick="delRC(${i})" aria-label="Delete rate change" title="Delete rate change">×</button></td></tr>`;}).join('')
+      <td class="actcell"><button class="small danger" onclick="delRC(${i})" aria-label="Delete rate change" title="Delete rate change">×</button></td></tr>`;}).join('')
     : '<tr><td class="empty">No rate changes recorded.</td></tr>';
   // payment change table
   const pcs = [...(M.paymentChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
   $('pcTable').innerHTML = pcs.length ?
-    '<tr><th>Effective date</th><th class="num">Payment</th><th></th></tr>' +
+    '<tr><th>Effective date</th><th class="num">Payment</th><th class="actcell"></th></tr>' +
     pcs.map(c=>{ const idx=M.paymentChanges.indexOf(c);
       return `<tr><td>${c.date}</td><td class="num gold">${fmt$2(c.amount)}</td>
-      <td><button class="small danger" onclick="delPC(${idx})">×</button></td></tr>`; }).join('')
+      <td class="actcell"><button class="small danger" onclick="delPC(${idx})" aria-label="Delete payment change" title="Delete payment change">×</button></td></tr>`; }).join('')
     : '<tr><td class="empty">No payment changes recorded.</td></tr>';
   // prepay table
   const ppsSorted = [...M.prepayments].sort((a,b)=>a.date.localeCompare(b.date));
   $('ppTable').innerHTML = ppsSorted.length ?
-    '<tr><th>Date</th><th class="num">Amount</th><th>Source</th><th>Note</th><th></th></tr>' +
+    '<tr><th>Date</th><th class="num">Amount</th><th>Source</th><th>Note</th><th class="actcell"></th></tr>' +
     ppsSorted.map(r=>{ const i=M.prepayments.indexOf(r);
       return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
       <td><span class="tag blue">${esc(r.source)}</span></td><td class="faint">${esc(r.note)}</td>
@@ -1534,7 +1537,7 @@ function renderHelocs(){
       <p class="faint" style="margin-top:.4rem"><span class="green">An <b>Investment</b> draw opens the purchase dialog</span>, linked back to this draw. Cancel there to log the buy later.</p>
       <div class="scrollx" style="margin-top:.8rem"><table>${
         h.draws.length||h.payments.length ?
-        '<tr><th>Date</th><th>Type</th><th class="num">Amount</th><th>Note</th><th></th></tr>' +
+        '<tr><th>Date</th><th>Type</th><th class="num">Amount</th><th>Note</th><th class="actcell"></th></tr>' +
         [...h.draws.map((d,di)=>({d,di,kind:'draw'})), ...h.payments.map((p,pi)=>({d:p,di:pi,kind:'pay'}))]
           .sort((a,b)=>a.d.date.localeCompare(b.d.date))
           .map(r=> r.kind==='draw'
@@ -1606,7 +1609,7 @@ function rateHistoryEditor(h, hi){
   const rows = hist.length
     ? hist.map((c)=>{ const realIdx = h.rateHistory.indexOf(c);
         return `<tr><td>${c.date}</td><td class="num">${c.rate.toFixed(2)}%</td>
-        <td><button class="small danger" onclick="delHRate(${hi},${realIdx})">×</button></td></tr>`; }).join('')
+        <td class="actcell"><button class="small danger" onclick="delHRate(${hi},${realIdx})" aria-label="Delete rate entry" title="Delete rate entry">×</button></td></tr>`; }).join('')
     : '<tr><td class="empty">No rate set. Add the opening rate (and any later changes) so interest is calculated correctly.</td></tr>';
   return `<details ${hist.length?'':'open'}><summary>Rate history — ${hist.length} change${hist.length===1?'':'s'}</summary>
     <div class="row" style="margin-bottom:.5rem">
@@ -1614,7 +1617,7 @@ function rateHistoryEditor(h, hi){
       <input type="number" step="0.01" id="hr-rate-${hi}" placeholder="rate %" style="max-width:120px">
       <button class="primary small" onclick="addHRate(${hi})">Add rate change</button>
     </div>
-    <table>${rows.length?'<tr><th>Effective date</th><th class="num">Rate</th><th></th></tr>'+rows:''}</table>
+    <table>${rows.length?'<tr><th>Effective date</th><th class="num">Rate</th><th class="actcell"></th></tr>'+rows:''}</table>
     <p class="faint" style="margin-top:.4rem">Each entry applies from its effective date until the next change. Interest before the first date uses the earliest rate.</p>
   </details>`;
 }
@@ -1635,7 +1638,7 @@ function primePanel(){
   const rows = hist.length
     ? hist.map((c)=>{ const realIdx=S.primeHistory.indexOf(c);
         return `<tr><td>${c.date}</td><td class="num">${c.prime.toFixed(2)}%</td>
-        <td><button class="small danger" onclick="delPrime(${realIdx})">×</button></td></tr>`; }).join('')
+        <td class="actcell"><button class="small danger" onclick="delPrime(${realIdx})" aria-label="Delete prime rate entry" title="Delete prime rate entry">×</button></td></tr>`; }).join('')
     : '<tr><td class="empty">No prime rate recorded yet.</td></tr>';
   const cur = primeAt(Date.now());
   return `<div class="card sub">
@@ -1647,7 +1650,7 @@ function primePanel(){
       <input type="number" step="0.01" id="pr-rate" placeholder="prime %" style="max-width:120px">
       <button class="primary small" onclick="addPrime()">Add prime change</button>
     </div>
-    <table>${hist.length?'<tr><th>Effective date</th><th class="num">Prime</th><th></th></tr>':''}${rows}</table>
+    <table>${hist.length?'<tr><th>Effective date</th><th class="num">Prime</th><th class="actcell"></th></tr>':''}${rows}</table>
   </div>`;
 }
 window.addPrime = ()=>{
@@ -1785,7 +1788,7 @@ function renderInvest(){
       <td class="num">${t.amount!=null?fmt$2(t.amount):(t.qty&&t.price)?fmt$2(t.qty*t.price):'—'}</td>
       <td class="faint">${esc(t.note)}</td>
       <td class="actcell"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small" onclick="editTx('${t.id}')">Edit</button><button class="small danger" onclick="delTx('${t.id}')" aria-label="Delete transaction" title="Delete transaction">×</button></td></tr>`;
-  const headRow = withSym => `<tr><th>Date</th><th>Type</th><th>Source</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th></th></tr>`;
+  const headRow = withSym => `<tr><th>Date</th><th>Type</th><th>Source</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th class="actcell"></th></tr>`;
   if(!sorted.length){
     $('txWrap').innerHTML = '<table><tr><td class="empty">Empty ledger.</td></tr></table>';
   } else if(txView==='sym'){
@@ -2261,11 +2264,11 @@ $('rdAdd').onclick = ()=>{
 };
 function renderRefunds(){
   $('rdTable').innerHTML = S.refunds.length ?
-    '<tr><th>Year</th><th class="num">Refund</th><th>Deployed to</th><th>Linked</th><th>Note</th><th></th></tr>'+
+    '<tr><th>Year</th><th class="num">Refund</th><th>Deployed to</th><th>Linked</th><th>Note</th><th class="actcell"></th></tr>'+
     S.refunds.map((r,i)=>`<tr><td class="num">${r.year}</td><td class="num green">${fmt$2(r.amount)}</td>
       <td><span class="tag ${r.to==='Spent / other'?'red':'gold'}">${esc(r.to)}</span></td>
       <td>${r.linked?`<span class="tag green">${r.linked.kind==='prepay'?'prepayment':r.linked.kind==='invest'?'investment buy':'HELOC payment'}</span>`:'<span class="faint">—</span>'}</td>
-      <td class="faint">${esc(r.note)}</td><td><button class="small danger" onclick="delRefund(${i})" aria-label="Delete refund record" title="Delete refund record">×</button></td></tr>`).join('')
+      <td class="faint">${esc(r.note)}</td><td class="actcell"><button class="small danger" onclick="delRefund(${i})" aria-label="Delete refund record" title="Delete refund record">×</button></td></tr>`).join('')
     : '<tr><td class="empty">No refunds recorded.</td></tr>';
 }
 window.delRefund = i => {
