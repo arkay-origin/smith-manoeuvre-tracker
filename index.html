@@ -165,6 +165,8 @@ canvas.chart{width:100%;height:300px;background:var(--panel2);border:1px solid v
 /* Segmented pill. align-self:start stops it stretching to fill a flex-column
    .field parent, which would leave an empty stub inside the rounded border.
    The buttons share the wrapper's radius so the active fill follows the curve. */
+.actcell{display:flex;gap:.3rem;flex-wrap:nowrap;justify-content:flex-end;align-items:center}
+th.actcell,td.actcell{text-align:right}
 .modewrap{display:inline-flex;align-self:start;width:fit-content;flex:0 0 auto;
   border:1px solid var(--line);border-radius:99px;overflow:hidden}
 .modewrap button{border:none;border-radius:0;background:none;padding:.35rem .8rem;
@@ -558,6 +560,10 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
           <option value="paydown">Pays down the HELOC — deleverage</option>
         </select></div>
     </div>
+    <p class="faint" style="margin:.1rem 0 .6rem">
+      <b>Extra monthly cashflow</b> is surplus you'd have either way. In the SM strategies it prepays the mortgage, then the freed room is re-borrowed and invested. In <b>do nothing</b> it's invested directly — the tougher baseline, since a mortgage prepayment would return less than the market.
+      <b>After payoff, freed cashflow</b> decides what happens once a strategy's mortgage is gone: keep the HELOC and invest everything, or use it to retire the investment loan. It only bites if the mortgage clears before your horizon.
+    </p>
     <details id="marginBox">
       <summary>Advanced: margin loan layered on a HELOC (read this first)</summary>
       <div class="disclaimer"><strong>Double leverage.</strong> A margin loan on top of a HELOC compounds risk: margin calls can force selling at the worst time, which a HELOC alone never does. Losses can exceed the strategy's entire benefit. Most people running the SM should not do this. The comparison below exists to show whether it even helps — often it doesn't after rates and tax.</div>
@@ -762,7 +768,7 @@ function ingest(text){
     if(typeof d!=='object'||!d.version) throw new Error('not a tracker file');
     S = Object.assign(BLANK(), d);
     const cfgEl = $('mortgageConfig'); if(cfgEl) delete cfgEl.dataset.touched;
-    hydrateForms(); renderAll(); setSaveState('Data loaded');
+    hydrateForms(); renderAll(); wireSimAutoRerun(); setSaveState('Data loaded');
   }catch(e){ alert('Could not read that file: '+e.message); }
 }
 let autoTimer = null;
@@ -1214,7 +1220,7 @@ function renderMortgage(){
     ppsSorted.map(r=>{ const i=M.prepayments.indexOf(r);
       return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
       <td><span class="tag blue">${esc(r.source)}</span></td><td class="faint">${esc(r.note)}</td>
-      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editPP(${i})">Edit</button><button class="small danger" onclick="delPP(${i})" aria-label="Delete prepayment" title="Delete prepayment">×</button></td></tr>`;}).join('')
+      <td class="actcell"><button class="small" onclick="editPP(${i})">Edit</button><button class="small danger" onclick="delPP(${i})" aria-label="Delete prepayment" title="Delete prepayment">×</button></td></tr>`;}).join('')
     : '<tr><td class="empty">No prepayments recorded. Prepay → re-borrow → invest is the whole engine.</td></tr>';
   // schedule — yearly rollup or full per-payment detail
   const t = $('mSched');
@@ -1534,10 +1540,10 @@ function renderHelocs(){
           .map(r=> r.kind==='draw'
             ? `<tr><td>${r.d.date}</td><td><span class="tag ${PURPOSES[r.d.purpose]?.cls||'red'}">${PURPOSES[r.d.purpose]?.label||r.d.purpose}</span></td>
                <td class="num">${fmt$2(r.d.amount)}</td><td class="faint">${esc(r.d.note)}</td>
-               <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editDraw(${hi},${r.di})">Edit</button><button class="small danger" onclick="delDraw(${hi},${r.di})" aria-label="Delete draw" title="Delete draw">×</button></td></tr>`
+               <td class="actcell"><button class="small" onclick="editDraw(${hi},${r.di})">Edit</button><button class="small danger" onclick="delDraw(${hi},${r.di})" aria-label="Delete draw" title="Delete draw">×</button></td></tr>`
             : `<tr><td>${r.d.date}</td><td><span class="tag green">Principal payment</span></td>
                <td class="num">−${fmt$2(r.d.amount).replace('−','')}</td><td class="faint">${esc(r.d.note)}</td>
-               <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="editHPay(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHPayRow(${hi},${r.di})" aria-label="Delete principal payment" title="Delete principal payment">×</button></td></tr>`).join('')
+               <td class="actcell"><button class="small" onclick="editHPay(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHPayRow(${hi},${r.di})" aria-label="Delete principal payment" title="Delete principal payment">×</button></td></tr>`).join('')
         : '<tr><td class="empty">No activity on this line yet.</td></tr>'
       }</table></div>
     </div>`;
@@ -1778,7 +1784,7 @@ function renderInvest(){
       <td class="num">${t.price!=null?fmt$2(t.price):'—'}</td>
       <td class="num">${t.amount!=null?fmt$2(t.amount):(t.qty&&t.price)?fmt$2(t.qty*t.price):'—'}</td>
       <td class="faint">${esc(t.note)}</td>
-      <td class="row" style="gap:.3rem;flex-wrap:nowrap"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small" onclick="editTx('${t.id}')">Edit</button><button class="small danger" onclick="delTx('${t.id}')" aria-label="Delete transaction" title="Delete transaction">×</button></td></tr>`;
+      <td class="actcell"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small" onclick="editTx('${t.id}')">Edit</button><button class="small danger" onclick="delTx('${t.id}')" aria-label="Delete transaction" title="Delete transaction">×</button></td></tr>`;
   const headRow = withSym => `<tr><th>Date</th><th>Type</th><th>Source</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th></th></tr>`;
   if(!sorted.length){
     $('txWrap').innerHTML = '<table><tr><td class="empty">Empty ledger.</td></tr></table>';
@@ -2540,6 +2546,14 @@ $('qcRun').onclick = ()=>{
     </table></div>
     <p class="faint" style="margin-top:.6rem">This is the single-year, pre-investment-tax gut check — it taxes the borrowing cost but not the dividends or gains. It also assumes the full deduction applies at your marginal rate. For the real answer with dividend tax, mortgage paydown, and a do-nothing comparison over time, use the full projection below. Educational only — not tax advice.</p>`;
 };
+// Results are only meaningful for the inputs that produced them. Once a run is
+// on screen, any input change re-runs it — otherwise changing a setting appears
+// to do nothing because the old numbers are still displayed.
+let simHasRun = false;
+function wireSimAutoRerun(){
+  const ids = SIM_REQUIRED.map(([id])=>id).concat(['sPost','sMgOn','sMgRate','sMgPct']);
+  ids.forEach(id=>{ const el=$(id); if(el) el.addEventListener('change', ()=>{ if(simHasRun) $('simRun').click(); }); });
+}
 $('simRun').onclick = ()=>{
   const missing = SIM_REQUIRED.filter(([id])=>$(id).value==='');
   if($('sMgOn').value==='1'){
@@ -2596,6 +2610,7 @@ $('simRun').onclick = ()=>{
   }
   verdict += `<p class="faint">Every strategy deploys the <b>same out-of-pocket cash each month</b> — payment plus your extra — so none is penalised for paying off sooner; a freed payment keeps working per your freed-cashflow setting. Dividends reinvest after tax throughout. Returns are modelled smooth: real markets are volatile and leverage cuts both ways. If your after-tax borrowing cost exceeds your return, every leveraged strategy loses to doing nothing — that's the math working, not failing.</p>`;
   $('simVerdict').innerHTML = verdict;
+  simHasRun = true;
 };
 
 /* =================================================================
