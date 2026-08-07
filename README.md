@@ -14,6 +14,8 @@ Your data is saved to a JSON file **on your own machine**. You load it when you 
 
 Auto-save is optional and off by default. Turn it on and the tool writes changes straight to your linked file — it stays off until you explicitly enable it, and the setting is remembered in your data file. It needs the File System Access API, so it works in Chrome and Edge, in Brave once you enable the flag at `brave://flags`, and not in Firefox or Safari. Everywhere else, Save and Load work exactly the same, just manually.
 
+Save As writes a separate copy and re-links to it, so you can keep dated snapshots without duplicating files by hand. The linked filename shows in the sidebar.
+
 You can also just download `index.html` and run it offline. It works exactly the same.
 
 ---
@@ -61,9 +63,12 @@ Not sure the strategy suits you? The Simulator answers that before you commit to
 - CRA average-cost ACB engine
 - Buys, sells, dividends, DRIP, return of capital, phantom distributions
 - Stock splits — forward and reverse, with fractional handling (keep, round down, or cash in lieu)
+- Opening positions: carry in units and ACB from records you already keep, and track forward from there
 - CSV import (Wealthsimple auto-maps; others via manual column mapping)
 - Superficial loss flagging
+- Ledger grouped by symbol, with open positions separated from past holdings
 - Per-event detail: open any transaction to see before → change → after with a plain-English explanation
+- All amounts are treated as Canadian dollars — there is no currency conversion, so convert foreign trades before entering them
 
 **Tax**
 - Deductible interest per year, per line, accrued daily across rate changes
@@ -106,6 +111,8 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Dates are build dates; the live site always serves the newest.
+
+**2026-08-07** — Opening positions: enter units and ACB carried in from another tracker or your accountant and track forward, with explicit notes on what that means for realized-gain coverage, superficial-loss detection, and deductibility tracing. Save As with re-linking, and the linked filename now shows in the sidebar. Investment ledger defaults to grouping by symbol, summarises each holding in its header, separates past holdings, and links symbols to their section. Simulator re-runs automatically when inputs change, and explains what extra and freed cashflow actually do. Stated plainly that all amounts are treated as Canadian dollars. Edit and delete controls aligned across every table.
 
 **2026-08-04** — Guided setup for new users and a "Using this tool" walkthrough. HELOC lines reorganised so metrics and entry come first, setup collapses once configured. Full amortization schedule renders a window with an expander instead of every row. Accessibility pass: current-tab state, labelled controls, better light-mode contrast. Build number added.
 

@@ -232,13 +232,14 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   </div>
   <div id="filebar" class="noprint">
     <button id="btnSave" class="primary">Save data file</button>
+    <button id="btnSaveAs">Save as / new copy</button>
     <button id="btnLoad">Load data file</button>
     <button id="btnAutosave">Auto-save: off</button>
     <button id="btnWipe" class="danger">Clear all data</button>
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">Build 2026-08-04</div>
+  <div id="version" class="noprint">Build 2026-08-07</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -472,11 +473,18 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div class="pagehead"><h1>Investments</h1>
     <div class="acts"><button id="csvImport">Import CSV</button><button class="primary" id="txAddBtn">+ Add transaction</button></div>
   </div>
-  <p class="faint">ACB uses the CRA average-cost method. Distributions with return of capital reduce ACB; reinvested (phantom) distributions increase it. Splits supported, including fractional handling.</p>
+  <p class="faint">ACB uses the CRA average-cost method. Distributions with return of capital reduce ACB; reinvested (phantom) distributions increase it. Splits supported, including fractional handling.
+    <br><b>All amounts are treated as Canadian dollars.</b> There is no currency conversion here — CRA requires ACB in CAD converted at each transaction's date rate, so convert foreign-currency trades before entering them. Entering USD figures directly will produce an ACB and a realized gain that are wrong.</p>
   <div class="card"><div class="spread"><h2>Holdings</h2><span class="faint">book values from ledger</span></div>
+    <p class="faint" id="holdNote" style="margin:.1rem 0 .5rem"></p>
     <div class="scrollx"><table id="holdTable"></table></div></div>
+
+  <div class="card" id="pastHoldings" style="display:none">
+    <div class="spread"><h2>Past holdings</h2><span class="faint">disposed — realized gain/loss still reports on Schedule 3</span></div>
+    <div class="scrollx"><table id="pastTable"></table></div>
+  </div>
   <div class="card"><div class="spread"><h2>Transaction ledger</h2>
-      <div class="row"><div class="modewrap"><button id="txvAll" class="on">All</button><button id="txvSym">By symbol</button></div>
+      <div class="row"><div class="modewrap"><button id="txvAll">All</button><button id="txvSym" class="on">By symbol</button></div>
       <button class="small" id="txCsv">Export CSV</button></div></div>
     <div class="scrollx" id="txWrap"></div></div>
   <div class="card sub"><h3>Superficial loss warning</h3>
@@ -627,6 +635,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div class="grid g2">
     <div class="field"><label>Type</label>
       <select id="txType">
+        <option value="open">Opening position (from prior records)</option>
         <option value="buy">Buy</option><option value="sell">Sell</option>
         <option value="div">Dividend (cash)</option><option value="drip">DRIP / reinvested</option>
         <option value="roc">Return of capital</option><option value="phantom">Phantom (reinvested) distribution</option>
@@ -642,6 +651,10 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <div class="field" id="fFrac" style="display:none"><label>Fractional remainder</label>
       <select id="txFrac"><option value="keep">Keep fractional units</option><option value="round">Round down (drop)</option><option value="cil">Cash in lieu</option></select></div>
     <div class="field" id="fCil" style="display:none"><label>Cash in lieu $</label><input type="number" id="txCil" step="0.01" value="0"></div>
+  </div>
+  <div id="txOpenNote" class="disclaimer" style="display:none;margin-bottom:.7rem">
+    <strong>Carried in from your own records.</strong> Enter the units held and their adjusted cost base in <b>Canadian dollars</b> as of this date — from another ACB tracker, your accountant, or your own spreadsheet. This tool takes those figures as given and cannot verify them.
+    <br>Two consequences worth knowing: realized gains before this date aren't in the tool, so Schedule 3 totals only cover dispositions after it; and because these units have no draw history, the tool can't determine how much of a future sale must return to the HELOC to keep the interest deductible.
   </div>
   <div id="txTotalBox" class="callout" style="display:none;margin-bottom:.7rem"></div>
   <div class="field"><label>Note</label><input type="text" id="txNote" placeholder="context for future-you"></div>
@@ -712,7 +725,7 @@ const BLANK = () => ({
 let S = BLANK();
 let schedView = 'yearly';
 let schedShowAll = false;
-let txView = 'all';
+let txView = 'sym';
 let fileHandle = null;
 let dirty = false;
 
@@ -732,25 +745,36 @@ function touch(){ dirty = true; renderAll(); autoSaveMaybe(); }
 
 function serialize(){ return JSON.stringify(S, null, 1); }
 
-async function saveFile(){
+// A dated default name makes versioned snapshots obvious in a file listing.
+function suggestedFileName(){
+  const d = new Date();
+  const stamp = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return 'smith-manoeuvre-'+stamp+'.json';
+}
+// forceNew=true is "Save as": always pick a fresh file, then RE-LINK to it so
+// later saves and auto-save follow the copy you just made.
+async function saveFile(forceNew){
   try{
     if(window.showSaveFilePicker){
-      if(!fileHandle){
-        fileHandle = await showSaveFilePicker({suggestedName:'smith-manoeuvre-data.json',
+      if(!fileHandle || forceNew){
+        fileHandle = await showSaveFilePicker({
+          suggestedName: fileHandle && !forceNew ? fileHandle.name : suggestedFileName(),
           types:[{description:'JSON',accept:{'application/json':['.json']}}]});
       }
       const w = await fileHandle.createWritable();
       await w.write(serialize()); await w.close();
-      setSaveState('Saved to linked file · '+new Date().toLocaleTimeString());
+      setSaveState((forceNew?'Saved a copy · now linked to ':'Saved · ')+linkedName()+' · '+new Date().toLocaleTimeString());
+      updateAutosaveBtn();
       dirty = false; return;
     }
   }catch(e){ if(e.name==='AbortError') return; console.warn(e); }
   // fallback: download
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([serialize()],{type:'application/json'}));
-  a.download = 'smith-manoeuvre-data.json'; a.click(); URL.revokeObjectURL(a.href);
+  a.download = suggestedFileName(); a.click(); URL.revokeObjectURL(a.href);
   setSaveState('Downloaded · re-upload it next session'); dirty = false;
 }
+function linkedName(){ return fileHandle && fileHandle.name ? fileHandle.name : 'linked file'; }
 async function loadFile(){
   try{
     if(window.showOpenFilePicker){
@@ -780,7 +804,7 @@ function autoSaveMaybe(){
   clearTimeout(autoTimer);
   autoTimer = setTimeout(async ()=>{
     try{ const w = await fileHandle.createWritable(); await w.write(serialize()); await w.close();
-      setSaveState('Auto-saved · '+new Date().toLocaleTimeString()); dirty=false;
+      setSaveState('Auto-saved to '+linkedName()+' · '+new Date().toLocaleTimeString()); dirty=false;
     }catch(e){ setSaveState('Auto-save failed — use Save button'); }
   }, 1200);
 }
@@ -794,19 +818,20 @@ function updateAutosaveBtn(){
 // already hold write permission — otherwise silently switch it off rather than
 // firing an unexpected browser permission prompt they never asked for.
 async function reconcileAutoSaveOnLoad(){
-  if(!S.autoSave){ setSaveState('Loaded · auto-save off'); updateAutosaveBtn(); return; }
+  if(!S.autoSave){ setSaveState('Loaded '+linkedName()+' · auto-save off'); updateAutosaveBtn(); return; }
   try{
     if(fileHandle && fileHandle.queryPermission){
       const st = await fileHandle.queryPermission({mode:'readwrite'});
-      if(st === 'granted'){ setSaveState('Loaded · auto-save ON'); updateAutosaveBtn(); return; }
+      if(st === 'granted'){ setSaveState('Loaded '+linkedName()+' · auto-save ON'); updateAutosaveBtn(); return; }
     }
   }catch(e){ /* fall through */ }
   S.autoSave = false;
-  setSaveState('Loaded · auto-save off (press to enable)');
+  setSaveState('Loaded '+linkedName()+' · auto-save off (press to enable)');
   updateAutosaveBtn();
 }
 
-$('btnSave').onclick = saveFile;
+$('btnSave').onclick = ()=>saveFile(false);
+$('btnSaveAs').onclick = ()=>saveFile(true);
 $('btnLoad').onclick = loadFile;
 $('btnAutosave').onclick = async ()=>{
   if(S.autoSave){                       // turning it OFF — always allowed, no prompts
@@ -826,7 +851,7 @@ $('btnAutosave').onclick = async ()=>{
   await saveFile();                      // links a file if one isn't linked yet
   if(fileHandle){
     S.autoSave = true;
-    setSaveState('Auto-save ON · ' + new Date().toLocaleTimeString());
+    setSaveState('Auto-save ON · '+linkedName());
     updateAutosaveBtn();
     autoSaveMaybe();                     // persist the preference itself
   }
@@ -1666,7 +1691,7 @@ window.delPrime = idx=>{ S.primeHistory.splice(idx,1); touch(); };
 /* =================================================================
    INVESTMENTS — CRA average-cost ACB, splits, ROC, superficial loss
    ================================================================= */
-const TXLABEL = {buy:'Buy',sell:'Sell',div:'Dividend',drip:'DRIP',roc:'ROC',phantom:'Phantom dist.',split:'Split'};
+const TXLABEL = {open:'Opening position',buy:'Buy',sell:'Sell',div:'Dividend',drip:'DRIP',roc:'ROC',phantom:'Phantom dist.',split:'Split'};
 function txSorted(){ return [...S.tx].sort((a,b)=> a.date.localeCompare(b.date) || (a.seq||0)-(b.seq||0)); }
 
 // Walk the ledger to compute per-symbol positions, ACB, realized G/L, income, and warnings.
@@ -1683,6 +1708,14 @@ function computeBook(){
     const before = snap(p);
     const lines = [];
     switch(t.type){
+      case 'open':
+        // Carried in from prior records. Units and ACB are asserted by the user,
+        // not derived from transactions here, so the borrowed/personal split of
+        // these units is unknown — flagged so a later sale can say so.
+        p.qty += t.qty; p.acb += (t.amount||0); p.opened = true;
+        lines.push(`Opening position: ${fmtN(t.qty)} ${t.sym} with an adjusted cost base of ${fmt$2(t.amount||0)}, as of ${t.date}.`);
+        lines.push(`Carried in from records kept elsewhere — this tool did not calculate it and cannot verify it.`);
+        break;
       case 'buy':
         p.qty += t.qty; p.acb += t.qty*t.price + (t.fee||0);
         lines.push(`Bought ${fmtN(t.qty)} ${t.sym} at ${fmt$2(t.price)}${t.fee?` plus ${fmt$2(t.fee)} commission`:''}.`);
@@ -1723,6 +1756,7 @@ function computeBook(){
         lines.push(`Sold ${fmtN(q)} ${t.sym} for ${fmt$2(proceeds)}${t.fee?` (after ${fmt$2(t.fee)} commission)`:''}.`);
         lines.push(`Cost base removed: ${fmt$2(acbOut)} (at ${fmt$2(acbPer)}/unit, the pooled average).`);
         lines.push(`Realized ${g>=0?'gain':'loss'} of ${fmt$2(Math.abs(g))}.`);
+        if(p.opened) lines.push(`⚠ This holding includes an opening position, so the borrowed vs. personal split of these units is unknown — the tool can't tell you how much of the proceeds must return to the HELOC to preserve deductibility.`);
         if(g < 0){
           const d0 = new Date(t.date).getTime();
           const rebuy = sorted.find(x=> x.sym===t.sym && (x.type==='buy'||x.type==='drip') &&
@@ -1763,14 +1797,30 @@ function computeBook(){
 function renderInvest(){
   const {pos, gains, slFlags, events} = computeBook();
   lastEvents = events;
-  const syms = Object.keys(pos).filter(s=>pos[s].qty>0.000001 || pos[s].realized || pos[s].income);
-  $('holdTable').innerHTML = syms.length ?
-    '<tr><th>Symbol</th><th class="num">Units</th><th class="num">ACB</th><th class="num">ACB / unit</th><th class="num">Income rec\'d</th><th class="num">ROC rec\'d</th><th class="num">Realized G/L</th></tr>'+
-    syms.map(s=>{ const p=pos[s]; return `<tr><td><b>${esc(s)}</b></td><td class="num">${fmtN(p.qty)}</td>
+  const allSyms = Object.keys(pos).filter(s=>pos[s].qty>0.000001 || pos[s].realized || pos[s].income);
+  const active = allSyms.filter(s=>pos[s].qty>0.000001);
+  const past   = allSyms.filter(s=>pos[s].qty<=0.000001);   // disposed — realized G/L still matters for Schedule 3
+  const holdHead = '<tr><th>Symbol</th><th class="num">Units</th><th class="num">ACB</th><th class="num">ACB / unit</th><th class="num">Income rec\'d</th><th class="num">ROC rec\'d</th><th class="num">Realized G/L</th></tr>';
+  const holdRow = sy => { const p=pos[sy];
+    return `<tr><td><a href="#sym-${encodeURIComponent(sy)}" onclick="jumpToSymbol('${esc(sy)}');return false"><b>${esc(sy)}</b></a></td>
+      <td class="num">${fmtN(p.qty)}</td>
       <td class="num">${fmt$2(p.acb)}</td><td class="num">${p.qty>0?fmt$2(p.acb/p.qty):'—'}</td>
       <td class="num">${fmt$2(p.income)}</td><td class="num">${fmt$2(p.roc)}</td>
-      <td class="num ${p.realized>=0?'green':'red'}">${fmt$2(p.realized)}</td></tr>`;}).join('')
-    : '<tr><td class="empty">No holdings yet — add transactions or import a CSV.</td></tr>';
+      <td class="num ${p.realized>=0?'green':'red'}">${fmt$2(p.realized)}</td></tr>`; };
+  // Realized totals only cover dispositions after the earliest carried-in position.
+  const openTx = S.tx.filter(t=>t.type==='open');
+  const hn = $('holdNote');
+  if(hn) hn.innerHTML = openTx.length
+    ? `<span class="gold">Realized gain/loss covers dispositions after your opening position${openTx.length>1?'s':''} (earliest ${openTx.map(t=>t.date).sort()[0]}).</span> Anything sold before that lives in whatever records you carried these figures in from.`
+    : '';
+  $('holdTable').innerHTML = active.length
+    ? holdHead + active.map(holdRow).join('')
+    : '<tr><td class="empty">No open positions — add transactions or import a CSV.</td></tr>';
+  const pastWrap = $('pastHoldings');
+  if(past.length){
+    pastWrap.style.display = '';
+    $('pastTable').innerHTML = holdHead + past.map(holdRow).join('');
+  } else pastWrap.style.display = 'none';
   const sorted = txSorted();
   const srcTag = t => {
     const l = t.link || (t.refundId ? {src:'refund'} : null);
@@ -1794,16 +1844,36 @@ function renderInvest(){
   } else if(txView==='sym'){
     const bySym = {};
     sorted.forEach(t=>{ (bySym[t.sym]=bySym[t.sym]||[]).push(t); });
-    $('txWrap').innerHTML = Object.keys(bySym).sort().map(sym=>{
-      const p = pos[sym];
-      return `<h3 style="margin-top:.8rem">${esc(sym)} <span class="faint" style="font-size:.78rem">${p?`${fmtN(p.qty)} units · ACB ${fmt$2(p.acb)}`:''}</span></h3>
+    // Order: open positions first, then disposed ones.
+    const symKeys = Object.keys(bySym).sort((a,b)=>{
+      const oa=(pos[a]&&pos[a].qty>0.000001)?0:1, ob=(pos[b]&&pos[b].qty>0.000001)?0:1;
+      return oa-ob || a.localeCompare(b);
+    });
+    $('txWrap').innerHTML = symKeys.map(sym=>{
+      const p = pos[sym] || {qty:0,acb:0,income:0,roc:0,realized:0};
+      const open = p.qty>0.000001;
+      // Only surface figures that carry a value — empty ones are noise.
+      const bits = [];
+      bits.push(open ? `${fmtN(p.qty)} units` : '<span class="tag red">closed</span>');
+      if(p.acb>0.005) bits.push(`ACB ${fmt$2(p.acb)}`);
+      if(open && p.qty>0 && p.acb>0.005) bits.push(`${fmt$2(p.acb/p.qty)}/unit`);
+      if(Math.abs(p.income)>0.005) bits.push(`income ${fmt$2(p.income)}`);
+      if(Math.abs(p.roc)>0.005) bits.push(`ROC ${fmt$2(p.roc)}`);
+      if(Math.abs(p.realized)>0.005)
+        bits.push(`realized <span class="${p.realized>=0?'green':'red'}">${fmt$2(p.realized)}</span>`);
+      return `<h3 id="sym-${encodeURIComponent(sym)}" style="margin-top:.9rem;scroll-margin-top:1rem">${esc(sym)}
+          <span class="faint" style="font-size:.78rem;font-weight:400"> ${bits.join(' · ')}</span></h3>
         <table>${headRow(false)}${bySym[sym].map(t=>txRow(t,false)).join('')}</table>`;
     }).join('');
   } else {
     $('txWrap').innerHTML = `<table>${headRow(true)}${sorted.map(t=>txRow(t,true)).join('')}</table>`;
   }
-  $('slWarn').innerHTML = slFlags.length ? slFlags.map(f=>`<p class="red" style="font-size:.85rem">⚠ ${esc(f)}</p>`).join('') :
-    '<p class="faint">No same-account superficial losses detected.</p>';
+  const openSyms = [...new Set(S.tx.filter(t=>t.type==='open').map(t=>t.sym))];
+  const slBlind = openSyms.length
+    ? `<p class="faint" style="font-size:.82rem">Can't see activity before the opening position${openSyms.length>1?'s':''} on ${openSyms.map(esc).join(', ')}, so a purchase in the 30 days before that date wouldn't be caught here.</p>`
+    : '';
+  $('slWarn').innerHTML = (slFlags.length ? slFlags.map(f=>`<p class="red" style="font-size:.85rem">⚠ ${esc(f)}</p>`).join('') :
+    '<p class="faint">No same-account superficial losses detected.</p>') + slBlind;
 }
 /* =================================================================
    EDIT ENTRIES — prepayments, HELOC draws/payments
@@ -1873,6 +1943,16 @@ window.editHPay = (hi,i) => {
 };
 
 let lastEvents = {};
+// Symbols in the holdings tables jump to their ledger section. The anchor only
+// exists in By-symbol view, so switch first when the user is on All.
+window.jumpToSymbol = sym => {
+  const go = ()=>{
+    const el = document.getElementById('sym-'+encodeURIComponent(sym));
+    if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  };
+  if(txView!=='sym'){ $('txvSym').click(); setTimeout(go, 60); }
+  else go();
+};
 $('txvAll').onclick = ()=>{ txView='all'; $('txvAll').classList.add('on'); $('txvSym').classList.remove('on'); renderInvest(); };
 $('txvSym').onclick = ()=>{ txView='sym'; $('txvSym').classList.add('on'); $('txvAll').classList.remove('on'); renderInvest(); };
 // Event drawer: before → change → after, with plain-English explanation.
@@ -1959,6 +2039,17 @@ function txTypeUI(){
   $('fRatio').style.display = t==='split' ? '' : 'none';
   $('fFrac').style.display  = t==='split' ? '' : 'none';
   $('fCil').style.display   = (t==='split' && $('txFrac').value==='cil') ? '' : 'none';
+  if(t==='open'){
+    $('fQty').style.display=''; $('fPrice').style.display='none'; $('fFee').style.display='none';
+    $('fAmt').style.display='';
+    $('fAmt').querySelector('label').textContent='Adjusted cost base $ (total, CAD)';
+    $('fQty').querySelector('label').textContent='Units held';
+  } else {
+    const amtLbl=$('fAmt').querySelector('label');
+    if(amtLbl.textContent.startsWith('Adjusted cost base')) amtLbl.textContent='Amount $';
+    $('fQty').querySelector('label').textContent='Quantity';
+  }
+  $('txOpenNote').style.display = t==='open' ? '' : 'none';
   txUpdateTotal();
 }
 $('txFrac').onchange = txTypeUI;
@@ -2015,6 +2106,16 @@ $('txSave').onclick = ()=>{
   if(['div','roc','phantom'].includes(type)){
     rec.amount=+$('txAmt').value;
     if(!rec.amount){ alert('Amount required'); return; }
+  }
+  if(type==='open'){
+    rec.qty=+$('txQty').value; rec.amount=+$('txAmt').value;
+    if(!rec.qty||!rec.amount){ alert('Units held and adjusted cost base are both required.'); return; }
+    // One opening position per symbol, and nothing may predate it — otherwise the
+    // carried-in ACB and the earlier transactions would both count.
+    const dupe = S.tx.find(t=>t.type==='open' && t.sym===sym && t.id!==rec.id);
+    if(dupe){ alert(`${sym} already has an opening position dated ${dupe.date}.\n\nEdit or delete that one instead — two opening positions would double-count the cost base.`); return; }
+    const earlier = S.tx.filter(t=>t.sym===sym && t.id!==rec.id && t.date < date);
+    if(earlier.length && !confirm(`${sym} already has ${earlier.length} transaction${earlier.length===1?'':'s'} dated before ${date}.\n\nAn opening position is meant to replace history, not sit on top of it — keeping both will overstate your cost base.\n\nAdd it anyway?`)) return;
   }
   if(type==='split'){
     rec.ratio=+$('txRatio').value; rec.frac=$('txFrac').value; rec.cil=+$('txCil').value||0;
@@ -2763,6 +2864,7 @@ function buildHistorySeries(){
         if(t.date > cut) break;
         const pp = pos[t.sym] = pos[t.sym] || {qty:0, acb:0};
         switch(t.type){
+          case 'open': pp.qty += t.qty; pp.acb += (t.amount||0); break;
           case 'buy':  pp.qty += t.qty; pp.acb += t.qty*t.price + (t.fee||0); break;
           case 'drip': pp.qty += t.qty; pp.acb += t.qty*t.price; break;
           case 'phantom': pp.acb += (t.amount||0); break;
