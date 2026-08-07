@@ -226,6 +226,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <button class="navbtn" data-view="mortgage">Mortgage</button>
   <button class="navbtn" data-view="heloc">HELOC</button>
   <button class="navbtn" data-view="invest">Investments</button>
+  <button class="navbtn" data-view="property">Property</button>
   <button class="navbtn" data-view="tax">Tax</button>
   <button class="navbtn" data-view="sim">Simulator</button>
   <button class="navbtn" data-view="audit">Audit &amp; Guide</button>
@@ -239,7 +240,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">Build 2026-08-07</div>
+  <div id="version" class="noprint">Build 2026-08-08</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -493,6 +494,20 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 </section>
 
 <!-- ========== TAX ========== -->
+<!-- ========== PROPERTY ========== -->
+<section class="view" id="view-property">
+  <div class="pagehead"><h1>Property</h1><div class="acts"><button class="primary" id="pAddProp">+ Add property</button></div></div>
+  <div class="disclaimer">
+    <strong>Record-keeping, not a tax return.</strong> This tracks what you received and what you spent so the numbers are in one place at tax time. It does <b>not</b> decide what's deductible, does not model capital cost allowance, and does not produce a T776. Current repairs and capital improvements are totalled separately because they're treated differently — a repair is generally claimed the year you pay it, an improvement is added to the building's cost base instead. Which is which is a judgement call for your accountant.
+    <br>Rental mortgage interest and rental expenses go on <b>T776</b> against rental income. That's a different stream from the investment interest on Line 22100 that the rest of this tool tracks — the two are never combined here.
+  </div>
+  <div id="propWrap"></div>
+  <div class="card" id="propEmpty">
+    <p class="faint">No properties yet. Add one to track a rental or second-property mortgage alongside its income and expenses.
+    Your principal residence and its mortgage stay on the <b>Mortgage</b> tab — that's the one the conversion strategy runs against.</p>
+  </div>
+</section>
+
 <section class="view" id="view-tax">
   <div class="pagehead"><h1>Tax</h1><div class="acts"></div></div>
   <div class="card">
@@ -715,6 +730,7 @@ const BLANK = () => ({
               rateChanges:[], prepayments:[] },
   helocs: [],                         // {id,name,rate,limit,draws:[{date,amount,purpose,note}],payments:[{date,amount,note}]}
   tx: [],                             // investment transactions
+  properties: [],                     // {id,name,share,mort:{...},income:[],expenses:[]}
   refunds: [],                        // {year,amount,to,note}
   lightYears: [],                     // annual summaries
   taxMTR: null,
@@ -1391,7 +1407,8 @@ $('hAddLine').onclick = ()=>{
   if(!name) return;
   S.helocs.push({id:uid(), name, limit:null, draws:[], payments:[],
     rateMode:'fixed', delta:null, rateHistory:[],
-    limitMode:'fixed', homeValue:null, maxLTV:null, initialRoom:null, growShare:100});
+    limitMode:'fixed', homeValue:null, maxLTV:null, initialRoom:null, growShare:100,
+    securedBy:'primary'});
   touch();
 };
 // Backward-compat + normalization: fold any legacy single `rate` into rateHistory.
@@ -1411,6 +1428,7 @@ function migrateHeloc(h){
   if(h.maxLTV===undefined) h.maxLTV = null;
   if(h.initialRoom===undefined) h.initialRoom = null;
   if(h.growShare===undefined) h.growShare = 100;
+  if(!h.securedBy) h.securedBy = 'primary';
 }
 // Effective credit limit for a line, today. For a re-advanceable line linked to
 // the mortgage, the limit grows as principal is repaid:
@@ -1421,6 +1439,11 @@ function helocLimitNow(h){
   //         HELOC is the SM line; overstates it when the limit is sub-divided.
   // 'grow' — this sub-account's own opening room, growing by the share of
   //         mortgage principal repaid that gets credited back to this line.
+  // Both dynamic modes derive room from THE mortgage on the Mortgage tab. A line
+  // secured by another property would be credited with the wrong property's
+  // principal, so those modes are unavailable there.
+  if(h.securedBy && h.securedBy!=='primary' && h.limitMode!=='fixed')
+    return {limit:h.limit ?? null, dynamic:false, otherProperty:true};
   if(h.limitMode==='readvanceable'){
     if(!h.homeValue || !h.maxLTV) return {limit:null, dynamic:true};
     const st = mortgageStats(buildSchedule());
@@ -1502,6 +1525,11 @@ function renderHelocs(){
            <select onchange="setRateMode(${hi},this.value)"><option value="fixed" selected>Fixed / manual</option><option value="prime">Prime + delta</option></select></div>
          <div class="field"><label>Effective rate today</label><input disabled value="${rNow!=null?rNow.toFixed(2)+'%':'add a rate below'}"></div>`;
     // credit-limit block: fixed limit, or re-advanceable derived from LTV
+    const securedSel = `<div class="field"><label>Secured by</label>
+        <select onchange="setHeloc(${hi},'securedBy',this.value)">
+          <option value="primary"${h.securedBy==='primary'?' selected':''}>Principal residence (the Mortgage tab)</option>
+          <option value="other"${h.securedBy==='other'?' selected':''}>Another property — rental or second home</option>
+        </select></div>`;
     const limitSel = sel => `<div class="field"><label>Limit type</label>
         <select onchange="setHeloc(${hi},'limitMode',this.value)">
           <option value="fixed"${sel==='fixed'?' selected':''}>Fixed limit</option>
@@ -1542,8 +1570,12 @@ function renderHelocs(){
       <details class="linecfg" ${cfgReady?'':'open'}>
         <summary>Line setup — rate basis, credit limit${h.rateMode==='fixed'?', rate history':''}</summary>
         <div class="grid g3" style="margin-bottom:.4rem">
-          ${rateBlock}${limitBlock}
+          ${rateBlock}${securedSel}${limitBlock}
         </div>
+        ${h.securedBy==='other' ? `<div class="disclaimer" style="margin-bottom:.7rem">
+          <strong>Secured by another property.</strong> Deductibility follows what the money was <em>used for</em>, not what secures the line — so investment draws here are still Line 22100 interest and are tracked normally.
+          <br>Two limits on what this tool can do: the growing-room limit types are unavailable, because they derive room from the principal-residence mortgage and would credit this line with the wrong property's principal — use a fixed limit. And if this line is ever drawn for rental expenses or improvements, that portion's interest belongs on <b>T776</b> against rental income, not Line 22100. This tool won't split a line across two tax forms. Keep it investment-only, or track the rest separately.
+        </div>`:''}
         ${lim.dynamic && lim.detail ? `<p class="faint" style="margin:-.1rem 0 .5rem">Room grows as you pay down the mortgage: limit = <b>${lim.detail}</b> = ${fmt$(lim.limit)}. ${roomAvail!=null&&roomAvail<0?'<span class="red">You are over the derived limit.</span>':''}</p>`:''}
         ${h.limitMode==='readvanceable' && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV.</span> Max LTV is usually 65% for the revolving portion, or up to 80% including your mortgage — check your product.</p>':''}
         ${h.limitMode==='grow' && h.initialRoom==null ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter this line\'s opening room.</span> Mortgage principal you repay is added to it. Use this when one global limit is split across sub-accounts — an LTV figure would capture the whole limit, not just this line.</p>':''}
@@ -1914,6 +1946,9 @@ $('edSave').onclick = ()=>{
   } else if(t.kind==='draw'){
     const h = S.helocs[t.hi], d = h && h.draws[t.i];
     if(d){ d.date=date; d.amount=amt; d.purpose=sel||d.purpose; d.note=note; }
+  } else if(t.kind==='propRow'){
+    const r = S.properties[t.pi] && S.properties[t.pi][t.list][t.idx];
+    if(r){ r.date=date; r.amount=amt; r.note=note; if(t.list==='expenses' && sel) r.kind=sel; }
   } else if(t.kind==='helocPay'){
     const h = S.helocs[t.hi], pmt = h && h.payments[t.i];
     if(pmt){ pmt.date=date; pmt.amount=amt; pmt.note=note; }
@@ -2467,6 +2502,20 @@ function buildAudit(){
       S.refunds.map(r=>`<tr><td>${r.year}</td><td class="num">${fmt$2(r.amount)}</td><td>${esc(r.to)}</td><td class="faint">${esc(r.note)}</td></tr>`).join('')+'</table>';
   }
   html += `<p class="faint" style="margin-top:1rem">Prepared ${today()}. This index summarizes the owner's records; the underlying bank and brokerage statements are the primary evidence. Educational tool — not professional advice.</p>`;
+  if(S.properties.length){
+    html += `<h3 style="margin-top:1rem">Rental / other property — record summary</h3>
+      <p class="faint">Reported at your ownership share. These figures belong on <b>T776</b> against rental income and are separate from the Line 22100 interest above — the two are never combined. Capital items are listed but excluded from the net figure; capital cost allowance is not modelled.</p>`;
+    S.properties.forEach(pr=>{
+      const yrs = propYearRows(pr);
+      html += `<h4 style="margin-top:.6rem">${esc(pr.name)}${pr.share!=null&&pr.share!==100?` <span class="faint">(${pr.share}% share)</span>`:''}</h4>`;
+      html += yrs.length
+        ? `<table><tr><th>Year</th><th class="num">Income</th><th class="num">Current expenses</th><th class="num">Mortgage interest</th><th class="num">Recorded net</th><th class="num">Capital</th></tr>`
+          + yrs.map(r=>`<tr><td>${r.y}</td><td class="num">${fmt$2(r.inc)}</td><td class="num">${fmt$2(r.cur)}</td>
+             <td class="num">${fmt$2(r.mi)}</td><td class="num">${fmt$2(r.net)}</td><td class="num">${r.cap?fmt$2(r.cap):'—'}</td></tr>`).join('')
+          + `</table>`
+        : '<p class="faint">Nothing recorded.</p>';
+    });
+  }
   $('auditBody').innerHTML = html || '<div class="empty">Nothing to report yet.</div>';
 }
 $('auditPrint').onclick = ()=>{
@@ -2771,7 +2820,7 @@ function renderDash(){
   const isEmpty = !S.mortgage.principal && !S.helocs.length && !S.tx.length && !S.lightYears.length;
   const sh = $('startHere'); if(sh) sh.style.display = isEmpty ? '' : 'none';
   // deductible vs non-deductible debt today
-  let dd=0, nd=0, portVal=null, dashMortStat=null;
+  let dd=0, nd=0, portVal=null, dashMortStat=null, propDebt=0;
   if(S.mode==='light' && S.lightYears.length){
     const r = S.lightYears[S.lightYears.length-1];
     dd = r.heloc; nd = r.mort; portVal = r.port;
@@ -2779,6 +2828,12 @@ function renderDash(){
     S.helocs.forEach(h=>{ const t=helocTotals(h); dd+=t.dedBal; nd+=Math.max(t.bal-t.dedBal,0); });
     const rows = buildSchedule(); const st = rows? mortgageStats(rows):null;
     if(st){ nd += st.balNow; dashMortStat = st; }
+    // Rental / second-property mortgages: already deductible against rental
+    // income, so they are NOT conversion targets and stay out of nd/dd entirely.
+    propDebt = S.properties.reduce((a,pr)=>{
+      const sc = propSchedule(pr.mort);
+      return a + (sc ? sc.balNow*((pr.share==null?100:pr.share)/100) : 0);
+    }, 0);
     const {pos} = computeBook();
     portVal = Object.values(pos).reduce((s,p)=>s+p.acb,0) || null; // book value proxy
   }
@@ -2800,6 +2855,7 @@ function renderDash(){
     <div class="stat"><div class="v">${portVal!=null?fmt$(portVal):'—'}</div><div class="l">${S.mode==='light'?'Portfolio value':'Portfolio (book value)'}</div></div>
     <div class="stat"><div class="v">${intYtd!=null?fmt$2(intYtd):'—'}</div><div class="l">Deductible interest ${yearNow}</div></div>
     <div class="stat"><div class="v green">${refundEst!=null?fmt$2(refundEst):'—'}</div><div class="l">${S.taxMTR!=null?`Est. refund @ ${S.taxMTR}%`:'Est. refund — set tax rate'}</div></div>
+    ${propDebt>0?`<div class="stat"><div class="v">${fmt$(propDebt)}</div><div class="l">Other property debt</div></div>`:''}
     ${dashMortStat && dashMortStat.meta.paidOff && dashMortStat.payoffDelta ? `<div class="stat"><div class="v ${dashMortStat.payoffDelta.months>=0?'green':'red'}">${dashMortStat.payoffDelta.months===0?'on time':(dashMortStat.payoffDelta.months>0?fmtMonths(dashMortStat.payoffDelta.months)+' sooner':fmtMonths(-dashMortStat.payoffDelta.months)+' later')}</div><div class="l">Mortgage-free vs. original term</div></div>`:''}`;
   // dashboard chart — annual summaries in Light mode, replayed ledger in Full mode
   let labels=[], port=[], debt=[];
@@ -2910,8 +2966,192 @@ function hydrateForms(){
   applyTheme(S.theme||'dark');
   updateAutosaveBtn();
 }
+
+/* =================================================================
+   PROPERTY — rental / second-property record keeping.
+   Deliberately NOT part of the conversion engine: this interest is
+   already deductible against rental income (T776), so converting it
+   isn't the goal and it never touches the conversion bar.
+   ================================================================= */
+function blankProperty(name){
+  return {id:uid(), name, share:100, address:'',
+    mort:{principal:null, rate:null, amortYears:null, start:null, freq:'12', compounding:null},
+    income:[], expenses:[]};
+}
+// Plain forward amortization — no prepayments or rate changes. Enough to report
+// interest per year, which is the number that matters for the rental return.
+function propSchedule(m){
+  if(!m.principal||!m.rate||!m.amortYears||!m.start||!m.compounding) return null;
+  const mm = paymentsPerYear(m.freq);
+  const i  = periodicRate(m.rate, mm, m.compounding);
+  const pay= stdPayment(m.principal, m.rate, m.amortYears, m.freq, m.compounding);
+  let bal = m.principal;
+  const byYear = {}; const rows=[];
+  const n = Math.round(m.amortYears*mm)*2;
+  for(let k=1;k<=n && bal>0.005;k++){
+    const d = addPeriods(m.start,k,mm).toISOString().slice(0,10);
+    const int = bal*i;
+    let prin = pay-int; if(prin>bal) prin=bal;
+    if(prin<0) prin=0;
+    bal -= prin;
+    const y = d.slice(0,4);
+    (byYear[y]=byYear[y]||{int:0,prin:0,end:0});
+    byYear[y].int+=int; byYear[y].prin+=prin; byYear[y].end=bal;
+    rows.push({date:d,int,prin,bal});
+    if(bal<=0.005) break;
+  }
+  return {byYear, rows, pay, balNow: (()=>{ const t=today(); let b=m.principal;
+    for(const r of rows){ if(r.date>t) break; b=r.bal; } return b; })()};
+}
+function propYearRows(pr){
+  const years = new Set();
+  const sch = propSchedule(pr.mort);
+  if(sch) Object.keys(sch.byYear).forEach(y=>years.add(y));
+  pr.income.forEach(r=>years.add(r.date.slice(0,4)));
+  pr.expenses.forEach(r=>years.add(r.date.slice(0,4)));
+  const share = (pr.share==null?100:pr.share)/100;
+  return [...years].sort().map(y=>{
+    const inc = pr.income.filter(r=>r.date.slice(0,4)===y).reduce((a,r)=>a+r.amount,0);
+    const cur = pr.expenses.filter(r=>r.date.slice(0,4)===y && r.kind!=='capital').reduce((a,r)=>a+r.amount,0);
+    const cap = pr.expenses.filter(r=>r.date.slice(0,4)===y && r.kind==='capital').reduce((a,r)=>a+r.amount,0);
+    const mi  = sch && sch.byYear[y] ? sch.byYear[y].int : 0;
+    return {y, inc:inc*share, cur:cur*share, cap:cap*share, mi:mi*share,
+            net:(inc-cur-mi)*share};
+  });
+}
+function renderProperties(){
+  const wrap = $('propWrap');
+  $('propEmpty').style.display = S.properties.length ? 'none' : '';
+  wrap.innerHTML = S.properties.map((pr,pi)=>{
+    const sch = propSchedule(pr.mort);
+    const yrs = propYearRows(pr);
+    const share = pr.share==null?100:pr.share;
+    const thisYear = String(new Date().getFullYear());
+    const cy = yrs.find(r=>r.y===thisYear);
+    const inc = [...pr.income].sort((a,b)=>a.date.localeCompare(b.date));
+    const exp = [...pr.expenses].sort((a,b)=>a.date.localeCompare(b.date));
+    return `<div class="card">
+      <div class="spread"><h2>${esc(pr.name)}</h2>
+        <div class="row"><button class="small" onclick="renameProp(${pi})">Rename</button>
+        <button class="small danger" onclick="delProp(${pi})">Delete property</button></div></div>
+
+      <div class="statgrid">
+        <div class="stat"><div class="v">${sch?fmt$(sch.balNow):'—'}</div><div class="l">Mortgage balance</div></div>
+        <div class="stat"><div class="v">${cy?fmt$(cy.inc):'—'}</div><div class="l">Income ${thisYear}</div></div>
+        <div class="stat"><div class="v">${cy?fmt$(cy.cur):'—'}</div><div class="l">Current expenses ${thisYear}</div></div>
+        <div class="stat"><div class="v">${cy?fmt$(cy.mi):'—'}</div><div class="l">Mortgage interest ${thisYear}</div></div>
+        <div class="stat"><div class="v ${cy&&cy.net<0?'red':''}">${cy?fmt$(cy.net):'—'}</div><div class="l">Recorded net ${thisYear}</div></div>
+        ${share!==100?`<div class="stat"><div class="v">${share}%</div><div class="l">Your share</div></div>`:''}
+      </div>
+
+      <details ${sch?'':'open'}>
+        <summary>Property setup — ownership share and mortgage</summary>
+        <div class="grid g3">
+          <div class="field"><label>Your ownership share %</label>
+            <input type="number" step="0.01" value="${share}" onchange="setProp(${pi},'share',this.value===''?100:+this.value)"></div>
+          <div class="field"><label>Address / note</label>
+            <input type="text" value="${esc(pr.address||'')}" placeholder="optional" onchange="setProp(${pi},'address',this.value)"></div>
+        </div>
+        <p class="faint">All figures below are shown at your ownership share. Jointly-owned property is reported by share, not in full.</p>
+        <hr>
+        <h3>Mortgage on this property</h3>
+        <div class="grid g3">
+          <div class="field"><label>Balance / original principal $</label><input type="number" step="0.01" value="${pr.mort.principal??''}" onchange="setPropM(${pi},'principal',this.value===''?null:+this.value)"></div>
+          <div class="field"><label>Annual rate %</label><input type="number" step="0.001" value="${pr.mort.rate??''}" onchange="setPropM(${pi},'rate',this.value===''?null:+this.value)"></div>
+          <div class="field"><label>Amortization (years)</label><input type="number" step="1" value="${pr.mort.amortYears??''}" onchange="setPropM(${pi},'amortYears',this.value===''?null:+this.value)"></div>
+          <div class="field"><label>Start date</label><input type="date" value="${pr.mort.start||''}" onchange="setPropM(${pi},'start',this.value||null)"></div>
+          <div class="field"><label>Payment frequency</label>
+            <select onchange="setPropM(${pi},'freq',this.value)">
+              ${['12','26','26a','52','52a'].map(f=>`<option value="${f}"${pr.mort.freq===f?' selected':''}>${freqLabel(f)}</option>`).join('')}
+            </select></div>
+          <div class="field"><label>Interest compounding <span class="red">*</span></label>
+            <select onchange="setPropM(${pi},'compounding',this.value||null)">
+              <option value=""${!pr.mort.compounding?' selected':''}>Select — check your documents</option>
+              ${[['2','Semi-annual'],['12','Monthly'],['match','Matches payment cycle'],['1','Annual'],['4','Quarterly'],['365','Daily']]
+                .map(([v,l])=>`<option value="${v}"${pr.mort.compounding===v?' selected':''}>${l}</option>`).join('')}
+            </select></div>
+        </div>
+        ${sch?`<p class="faint">Calculated payment ${fmt$2(sch.pay)} per period. This schedule is a plain amortization — it doesn't model prepayments or rate changes, so reconcile against your statements.</p>`:'<p class="faint">Fill in the mortgage details to see interest per year. Leave blank if this property has no mortgage.</p>'}
+      </details>
+
+      <h3>Income received</h3>
+      <div class="grid g3">
+        <div class="field"><label>Date</label><input type="date" id="pi-date-${pi}" value="${today()}"></div>
+        <div class="field"><label>Amount $</label><input type="number" step="0.01" id="pi-amt-${pi}"></div>
+        <div class="field"><label>&nbsp;</label><button onclick="addPropIncome(${pi})" style="width:100%">Add income</button></div>
+      </div>
+      <div class="field"><label>Note</label><input type="text" id="pi-note-${pi}" placeholder="e.g. August rent"></div>
+      <div class="scrollx"><table>${inc.length?
+        '<tr><th>Date</th><th class="num">Amount</th><th>Note</th><th class="actcell"></th></tr>'+
+        inc.map(r=>{const idx=pr.income.indexOf(r);
+          return `<tr><td>${r.date}</td><td class="num green">${fmt$2(r.amount)}</td><td class="faint">${esc(r.note)}</td>
+          <td class="actcell"><button class="small" onclick="editPropRow(${pi},'income',${idx})">Edit</button><button class="small danger" onclick="delPropRow(${pi},'income',${idx})" aria-label="Delete income entry" title="Delete income entry">×</button></td></tr>`;}).join('')
+        :'<tr><td class="empty">No income recorded.</td></tr>'}</table></div>
+
+      <h3 style="margin-top:.9rem">Expenses</h3>
+      <div class="grid g3">
+        <div class="field"><label>Date</label><input type="date" id="pe-date-${pi}" value="${today()}"></div>
+        <div class="field"><label>Amount $</label><input type="number" step="0.01" id="pe-amt-${pi}"></div>
+        <div class="field"><label>Type</label>
+          <select id="pe-kind-${pi}">
+            <option value="current">Current — repair, upkeep, operating</option>
+            <option value="capital">Capital — improvement / betterment</option>
+          </select></div>
+      </div>
+      <div class="field"><label>Note</label><input type="text" id="pe-note-${pi}" placeholder="what was it for?"></div>
+      <button onclick="addPropExpense(${pi})">Add expense</button>
+      <p class="faint" style="margin-top:.4rem">Roughly: restoring something to its original condition is current; making it better than it was, or extending its life, is capital. Capital items aren't claimed in the year you pay them — they go to the building's cost base. Ask your accountant when it's borderline.</p>
+      <div class="scrollx" style="margin-top:.5rem"><table>${exp.length?
+        '<tr><th>Date</th><th class="num">Amount</th><th>Type</th><th>Note</th><th class="actcell"></th></tr>'+
+        exp.map(r=>{const idx=pr.expenses.indexOf(r);
+          return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
+          <td><span class="tag ${r.kind==='capital'?'blue':'gold'}">${r.kind==='capital'?'Capital':'Current'}</span></td>
+          <td class="faint">${esc(r.note)}</td>
+          <td class="actcell"><button class="small" onclick="editPropRow(${pi},'expenses',${idx})">Edit</button><button class="small danger" onclick="delPropRow(${pi},'expenses',${idx})" aria-label="Delete expense entry" title="Delete expense entry">×</button></td></tr>`;}).join('')
+        :'<tr><td class="empty">No expenses recorded.</td></tr>'}</table></div>
+
+      <h3 style="margin-top:.9rem">By year</h3>
+      <div class="scrollx"><table>${yrs.length?
+        '<tr><th>Year</th><th class="num">Income</th><th class="num">Current expenses</th><th class="num">Mortgage interest</th><th class="num">Recorded net</th><th class="num">Capital (not in net)</th></tr>'+
+        yrs.map(r=>`<tr><td>${r.y}</td><td class="num green">${fmt$(r.inc)}</td><td class="num">${fmt$(r.cur)}</td>
+          <td class="num">${fmt$(r.mi)}</td><td class="num ${r.net<0?'red':''}">${fmt$(r.net)}</td>
+          <td class="num faint">${r.cap?fmt$(r.cap):'—'}</td></tr>`).join('')
+        :'<tr><td class="empty">Nothing recorded yet.</td></tr>'}</table></div>
+      <p class="faint">"Recorded net" is income minus current expenses minus mortgage interest, at your share. It is not a T776 figure: capital items are excluded, capital cost allowance isn't modelled, and whether each item is genuinely deductible is your accountant's call.</p>
+    </div>`;
+  }).join('');
+}
+$('pAddProp').onclick = ()=>{
+  const n = prompt('Property name', 'Rental property'); if(!n) return;
+  S.properties.push(blankProperty(n.trim())); touch();
+};
+window.renameProp = pi => { const n=prompt('Property name', S.properties[pi].name); if(n){ S.properties[pi].name=n.trim(); touch(); } };
+window.delProp = pi => { if(confirm(`Delete "${S.properties[pi].name}" and all its records?`)){ S.properties.splice(pi,1); touch(); } };
+window.setProp  = (pi,k,v)=>{ S.properties[pi][k]=v; touch(); };
+window.setPropM = (pi,k,v)=>{ S.properties[pi].mort[k]=v; touch(); };
+window.addPropIncome = pi => {
+  const d=$(`pi-date-${pi}`).value, a=+$(`pi-amt-${pi}`).value;
+  if(!d||!a){ alert('Date and amount required'); return; }
+  S.properties[pi].income.push({id:uid(), date:d, amount:a, note:$(`pi-note-${pi}`).value}); touch();
+};
+window.addPropExpense = pi => {
+  const d=$(`pe-date-${pi}`).value, a=+$(`pe-amt-${pi}`).value;
+  if(!d||!a){ alert('Date and amount required'); return; }
+  S.properties[pi].expenses.push({id:uid(), date:d, amount:a, kind:$(`pe-kind-${pi}`).value, note:$(`pe-note-${pi}`).value}); touch();
+};
+window.delPropRow = (pi,list,idx)=>{ S.properties[pi][list].splice(idx,1); touch(); };
+window.editPropRow = (pi,list,idx)=>{
+  const r = S.properties[pi][list][idx]; if(!r) return;
+  openEdit({ target:{kind:'propRow', pi, list, idx},
+    title: list==='income'?'Edit income entry':'Edit expense entry',
+    date:r.date, amount:r.amount, note:r.note,
+    selLabel:'Type', selected:r.kind,
+    options: list==='expenses' ? [{value:'current',label:'Current — repair, upkeep, operating'},
+                                  {value:'capital',label:'Capital — improvement / betterment'}] : null });
+};
+
 function renderAll(){
-  renderMortgage(); renderHelocs(); renderInvest(); renderRefunds(); renderLight(); renderDash(); buildAudit();
+  renderMortgage(); renderHelocs(); renderInvest(); renderProperties(); renderRefunds(); renderLight(); renderDash(); buildAudit();
 }
 window.addEventListener('resize', ()=>{ renderDash(); });
 hydrateForms(); renderAll();

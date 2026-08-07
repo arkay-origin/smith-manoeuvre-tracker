@@ -26,7 +26,14 @@ You can also just download `index.html` and run it offline. It works exactly the
 
 1. **Mortgage** — principal, rate, compounding basis, start date. Compounding is required and has no default: semi-annual for most Canadian fixed mortgages, often monthly on variable. Your documents state it.
 2. **HELOC** — add your line with its rate basis and credit limit. If your room grows as you repay principal, choose a re-advanceable limit type.
-3. **Tax** — set your marginal rate so deductible interest and refund estimates work.
+3. **Property (rental / second home)**
+- Track a mortgage on another property with its own amortization and interest per year
+- Record income and expenses line by line, split into current and capital
+- Ownership share applied throughout, for jointly-owned property
+- Kept out of the debt-conversion figures: rental interest is already deductible, so it isn't a conversion target
+- Record-keeping only — no capital cost allowance, no T776, and no judgement about what's deductible
+
+**Tax** — set your marginal rate so deductible interest and refund estimates work.
 
 **Each month:** record the prepayment on Mortgage, then the matching draw on HELOC tagged Investment — that offers the purchase dialog so the buy lands in the ledger linked to the draw. Prepay, re-borrow, invest.
 
@@ -94,6 +101,8 @@ Not sure the strategy suits you? The Simulator answers that before you commit to
 
 **This is an educational tool. It is not financial, tax, legal, or investment advice.**
 
+The Property tab is record-keeping, not tax computation. It totals what you recorded; it does not decide what's deductible, does not model capital cost allowance, and does not produce a T776. Rental interest and expenses belong on T776 against rental income — a separate stream from the Line 22100 investment interest the rest of the tool tracks. The two are never combined.
+
 The Smith Manoeuvre is leveraged investing and carries a real risk of loss. Interest deductibility depends on facts this tool cannot verify.
 
 Interest figures here are **estimates** using simple daily accrual on the tagged deductible balance, with mixed-line payments split pro-rata. **Your lender's statements govern.** Reconcile against them, and consult a CPA, before filing anything.
@@ -111,6 +120,8 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Dates are build dates; the live site always serves the newest.
+
+**2026-08-08** — New Property tab for rentals and second homes: a mortgage with its own schedule and yearly interest, line-by-line income and expenses split into current and capital, and an ownership-share setting for jointly-owned property. Deliberately record-keeping rather than tax computation — no CCA, no T776, and rental figures are kept separate from Line 22100 investment interest throughout, including in the audit package. HELOC lines can now record which property secures them; lines on another property keep working normally for investment draws but can't use the growing-room limit types, which derive from the principal-residence mortgage.
 
 **2026-08-07** — Opening positions: enter units and ACB carried in from another tracker or your accountant and track forward, with explicit notes on what that means for realized-gain coverage, superficial-loss detection, and deductibility tracing. Save As with re-linking, and the linked filename now shows in the sidebar. Investment ledger defaults to grouping by symbol, summarises each holding in its header, separates past holdings, and links symbols to their section. Simulator re-runs automatically when inputs change, and explains what extra and freed cashflow actually do. Stated plainly that all amounts are treated as Canadian dollars. Edit and delete controls aligned across every table.
 
