@@ -168,6 +168,9 @@ canvas.chart{width:100%;height:300px;background:var(--panel2);border:1px solid v
 /* Action columns (edit/delete) align right across every table. Kept as normal
    table cells — display:flex on a <td> drops table-cell semantics and lets the
    column drift out of line with its header. */
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--gold)}
+.sortarrow{font-size:.6rem;opacity:.65}
 th.actcell,td.actcell{text-align:right;white-space:nowrap;width:1%}
 td.actcell button{margin-left:.3rem;vertical-align:middle}
 .modewrap{display:inline-flex;align-self:start;width:fit-content;flex:0 0 auto;
@@ -240,7 +243,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">Build 2026-08-08</div>
+  <div id="version" class="noprint">Build 2026-08-09</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -476,6 +479,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   </div>
   <p class="faint">ACB uses the CRA average-cost method. Distributions with return of capital reduce ACB; reinvested (phantom) distributions increase it. Splits supported, including fractional handling.
     <br><b>All amounts are treated as Canadian dollars.</b> There is no currency conversion here — CRA requires ACB in CAD converted at each transaction's date rate, so convert foreign-currency trades before entering them. Entering USD figures directly will produce an ACB and a realized gain that are wrong.</p>
+  <p class="faint" id="lastImportNote" style="margin:-.3rem 0 .6rem"></p>
   <div class="card"><div class="spread"><h2>Holdings</h2><span class="faint">book values from ledger</span></div>
     <p class="faint" id="holdNote" style="margin:.1rem 0 .5rem"></p>
     <div class="scrollx"><table id="holdTable"></table></div></div>
@@ -518,6 +522,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
       <div class="field"><label>&nbsp;</label><button class="primary" id="taxCalc" style="width:100%">Calculate year</button></div>
     </div>
     <div class="statgrid" id="taxStats"></div>
+    <div id="taxRecNote"></div>
     <div class="callout"><b>These are estimates, not statements.</b> Ledger figures use simple daily accrual (actual/365) and split mixed-line payments pro-rata. Reconcile against your lender's annual interest statement before filing — where they differ, the statement wins.</div>
     <p class="faint">Deductible interest = interest attributable to draws tagged <span class="tag gold">Investment</span> or <span class="tag gold">Capitalized interest</span> on those draws. Interest goes on <b>Line 22100</b> (carrying charges) of your T1. Mixed-use draws are excluded — keep them out of your SM line entirely.</p>
   </div>
@@ -650,11 +655,11 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div class="grid g2">
     <div class="field"><label>Type</label>
       <select id="txType">
-        <option value="open">Opening position (from prior records)</option>
         <option value="buy">Buy</option><option value="sell">Sell</option>
         <option value="div">Dividend (cash)</option><option value="drip">DRIP / reinvested</option>
         <option value="roc">Return of capital</option><option value="phantom">Phantom (reinvested) distribution</option>
         <option value="split">Stock split</option>
+        <option value="open">Opening position (from prior records)</option>
       </select></div>
     <div class="field"><label>Date</label><input type="date" id="txDate"></div>
     <div class="field"><label>Symbol</label><input type="text" id="txSym" placeholder="VDY.TO" style="text-transform:uppercase"></div>
@@ -679,6 +684,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 <!-- CSV import dialog -->
 <dialog id="csvDialog">
   <h2>Import CSV</h2>
+  <p class="faint" id="csvLastNote" style="margin-bottom:.4rem"></p>
   <p class="faint">Wealthsimple exports auto-map. Otherwise map columns manually. Recognized types: buy, sell, dividend, DRIP.</p>
   <div class="field"><label>CSV file</label><input type="file" id="csvFile" accept=".csv,text/csv"></div>
   <div id="csvMap" style="display:none">
@@ -730,6 +736,7 @@ const BLANK = () => ({
               rateChanges:[], prepayments:[] },
   helocs: [],                         // {id,name,rate,limit,draws:[{date,amount,purpose,note}],payments:[{date,amount,note}]}
   tx: [],                             // investment transactions
+  lastImport: null,                   // {at, newest} — so you know what to export next time
   properties: [],                     // {id,name,share,mort:{...},income:[],expenses:[]}
   refunds: [],                        // {year,amount,to,note}
   lightYears: [],                     // annual summaries
@@ -742,6 +749,19 @@ let S = BLANK();
 let schedView = 'yearly';
 let schedShowAll = false;
 let txView = 'sym';
+/* Date sorting is a DISPLAY concern only. Every engine (schedule, ACB, interest
+   accrual) sorts events by true date internally regardless of what's shown —
+   reversing a table must never reach the computation. */
+const sortDir = { prepay:'desc', heloc:'desc', ledger:'desc', refunds:'desc' };
+function toggleSort(key){ sortDir[key] = sortDir[key]==='asc' ? 'desc' : 'asc'; renderAll(); }
+window.toggleSort = toggleSort;
+function byDate(rows, key, get){
+  const d = sortDir[key]==='asc' ? 1 : -1;
+  return [...rows].sort((a,b)=> d * ((get?get(a):a.date).localeCompare(get?get(b):b.date)));
+}
+function sortHead(key, label){
+  return `<th class="sortable" onclick="toggleSort('${key}')" title="Sort by date">${label} <span class="sortarrow">${sortDir[key]==='asc'?'▲':'▼'}</span></th>`;
+}
 let fileHandle = null;
 let dirty = false;
 
@@ -1258,9 +1278,9 @@ function renderMortgage(){
       <td class="actcell"><button class="small danger" onclick="delPC(${idx})" aria-label="Delete payment change" title="Delete payment change">×</button></td></tr>`; }).join('')
     : '<tr><td class="empty">No payment changes recorded.</td></tr>';
   // prepay table
-  const ppsSorted = [...M.prepayments].sort((a,b)=>a.date.localeCompare(b.date));
+  const ppsSorted = byDate(M.prepayments,'prepay');
   $('ppTable').innerHTML = ppsSorted.length ?
-    '<tr><th>Date</th><th class="num">Amount</th><th>Source</th><th>Note</th><th class="actcell"></th></tr>' +
+    `<tr>${sortHead('prepay','Date')}<th class="num">Amount</th><th>Source</th><th>Note</th><th class="actcell"></th></tr>` +
     ppsSorted.map(r=>{ const i=M.prepayments.indexOf(r);
       return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
       <td><span class="tag blue">${esc(r.source)}</span></td><td class="faint">${esc(r.note)}</td>
@@ -1408,7 +1428,7 @@ $('hAddLine').onclick = ()=>{
   S.helocs.push({id:uid(), name, limit:null, draws:[], payments:[],
     rateMode:'fixed', delta:null, rateHistory:[],
     limitMode:'fixed', homeValue:null, maxLTV:null, initialRoom:null, growShare:100,
-    securedBy:'primary'});
+    securedBy:'primary', interestNotes:[]});
   touch();
 };
 // Backward-compat + normalization: fold any legacy single `rate` into rateHistory.
@@ -1423,6 +1443,8 @@ function migrateHeloc(h){
   delete h.rate;
   (h.draws||[]).forEach(d=>{ if(!d.id) d.id = uid(); });
   (h.payments||[]).forEach(x=>{ if(!x.id) x.id = uid(); });
+  if(!h.interestNotes) h.interestNotes = [];   // statement interest paid in cash, balance unaffected
+  h.interestNotes.forEach(x=>{ if(!x.id) x.id = uid(); });
   if(!h.limitMode) h.limitMode = 'fixed';
   if(h.homeValue===undefined) h.homeValue = null;
   if(h.maxLTV===undefined) h.maxLTV = null;
@@ -1587,23 +1609,27 @@ function renderHelocs(){
         <div class="field"><label>Date</label><input type="date" id="hd-date-${hi}" value="${today()}"></div>
         <div class="field"><label>Amount $</label><input type="number" step="0.01" id="hd-amt-${hi}"></div>
         <div class="field"><label>Type</label>
-          <select id="hd-pur-${hi}">${Object.entries(PURPOSES).map(([k,v])=>`<option value="${k}">Draw — ${v.label}</option>`).join('')}<option value="principal">Principal payment</option></select></div>
+          <select id="hd-pur-${hi}">${Object.entries(PURPOSES).map(([k,v])=>`<option value="${k}">Draw — ${v.label}</option>`).join('')}<option value="principal">Principal payment</option><option value="interest">Interest charged — paid in cash, not capitalized</option></select></div>
       </div>
       <div class="field"><label>Note</label><input type="text" id="hd-note-${hi}" placeholder="e.g. bought 120 VDY @ 46.10, order #…"></div>
       <div class="row"><button class="primary" onclick="addDraw(${hi})">Add transaction</button></div>
       <p class="faint" style="margin-top:.4rem"><span class="green">An <b>Investment</b> draw opens the purchase dialog</span>, linked back to this draw. Cancel there to log the buy later.</p>
       <div class="scrollx" style="margin-top:.8rem"><table>${
         h.draws.length||h.payments.length ?
-        '<tr><th>Date</th><th>Type</th><th class="num">Amount</th><th>Note</th><th class="actcell"></th></tr>' +
-        [...h.draws.map((d,di)=>({d,di,kind:'draw'})), ...h.payments.map((p,pi)=>({d:p,di:pi,kind:'pay'}))]
-          .sort((a,b)=>a.d.date.localeCompare(b.d.date))
+        `<tr>${sortHead('heloc','Date')}<th>Type</th><th class="num">Amount</th><th>Note</th><th class="actcell"></th></tr>` +
+        [...h.draws.map((d,di)=>({d,di,kind:'draw'})), ...h.payments.map((p,pi)=>({d:p,di:pi,kind:'pay'})),
+         ...(h.interestNotes||[]).map((n,ni)=>({d:n,di:ni,kind:'int'}))]
+          .sort((a,b)=> (sortDir.heloc==='asc'?1:-1) * a.d.date.localeCompare(b.d.date))
           .map(r=> r.kind==='draw'
             ? `<tr><td>${r.d.date}</td><td><span class="tag ${PURPOSES[r.d.purpose]?.cls||'red'}">${PURPOSES[r.d.purpose]?.label||r.d.purpose}</span></td>
                <td class="num">${fmt$2(r.d.amount)}</td><td class="faint">${esc(r.d.note)}</td>
                <td class="actcell"><button class="small" onclick="editDraw(${hi},${r.di})">Edit</button><button class="small danger" onclick="delDraw(${hi},${r.di})" aria-label="Delete draw" title="Delete draw">×</button></td></tr>`
-            : `<tr><td>${r.d.date}</td><td><span class="tag green">Principal payment</span></td>
+            : r.kind==='pay' ? `<tr><td>${r.d.date}</td><td><span class="tag green">Principal payment</span></td>
                <td class="num">−${fmt$2(r.d.amount).replace('−','')}</td><td class="faint">${esc(r.d.note)}</td>
-               <td class="actcell"><button class="small" onclick="editHPay(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHPayRow(${hi},${r.di})" aria-label="Delete principal payment" title="Delete principal payment">×</button></td></tr>`).join('')
+               <td class="actcell"><button class="small" onclick="editHPay(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHPayRow(${hi},${r.di})" aria-label="Delete principal payment" title="Delete principal payment">×</button></td></tr>`
+            : `<tr><td>${r.d.date}</td><td><span class="tag blue">Interest charged</span></td>
+               <td class="num faint">${fmt$2(r.d.amount)}</td><td class="faint">${esc(r.d.note)}</td>
+               <td class="actcell"><button class="small" onclick="editHInt(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHInt(${hi},${r.di})" aria-label="Delete interest record" title="Delete interest record">×</button></td></tr>`).join('')
         : '<tr><td class="empty">No activity on this line yet.</td></tr>'
       }</table></div>
     </div>`;
@@ -1620,7 +1646,7 @@ window.addDraw = hi=>{
   // Warn — but don't hard-block — when a draw would exceed the known room. A block
   // would trap people backfilling history, or whose lender re-advances on a
   // different schedule than this tool assumes.
-  if(purpose!=='principal'){
+  if(purpose!=='principal' && purpose!=='interest'){
     const h = S.helocs[hi], lim = helocLimitNow(h);
     if(lim.limit != null){
       const room = lim.limit - helocTotals(h).bal;
@@ -1634,6 +1660,14 @@ window.addDraw = hi=>{
   }
   if(purpose==='principal'){
     S.helocs[hi].payments.push({id:uid(), date, amount:amt, note});
+    touch(); return;
+  }
+  if(purpose==='interest'){
+    // A record of interest charged and paid from cash. It does NOT change the
+    // balance (that would double-count — the payment already covered it) and it
+    // is not a draw. It exists so the Tax tab can total what your statements
+    // actually say, instead of only the tool's daily-accrual estimate.
+    S.helocs[hi].interestNotes.push({id:uid(), date, amount:amt, note});
     touch(); return;
   }
   const drawId = uid();
@@ -1848,12 +1882,16 @@ function renderInvest(){
   $('holdTable').innerHTML = active.length
     ? holdHead + active.map(holdRow).join('')
     : '<tr><td class="empty">No open positions — add transactions or import a CSV.</td></tr>';
+  const li = $('lastImportNote');
+  if(li) li.innerHTML = S.lastImport
+    ? `Last CSV import ${S.lastImport.at}${S.lastImport.newest?` · newest transaction imported was <b>${S.lastImport.newest}</b> — export from the day after that to top up`:''}`
+    : '';
   const pastWrap = $('pastHoldings');
   if(past.length){
     pastWrap.style.display = '';
     $('pastTable').innerHTML = holdHead + past.map(holdRow).join('');
   } else pastWrap.style.display = 'none';
-  const sorted = txSorted();
+  const sorted = byDate(txSorted(),'ledger');
   const srcTag = t => {
     const l = t.link || (t.refundId ? {src:'refund'} : null);
     if(!l) return '<span class="faint">manual</span>';
@@ -1870,7 +1908,7 @@ function renderInvest(){
       <td class="num">${t.amount!=null?fmt$2(t.amount):(t.qty&&t.price)?fmt$2(t.qty*t.price):'—'}</td>
       <td class="faint">${esc(t.note)}</td>
       <td class="actcell"><button class="small" onclick="showEvent('${t.id}')">Details</button><button class="small" onclick="editTx('${t.id}')">Edit</button><button class="small danger" onclick="delTx('${t.id}')" aria-label="Delete transaction" title="Delete transaction">×</button></td></tr>`;
-  const headRow = withSym => `<tr><th>Date</th><th>Type</th><th>Source</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th class="actcell"></th></tr>`;
+  const headRow = withSym => `<tr>${sortHead('ledger','Date')}<th>Type</th><th>Source</th>${withSym?'<th>Symbol</th>':''}<th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th><th>Note</th><th class="actcell"></th></tr>`;
   if(!sorted.length){
     $('txWrap').innerHTML = '<table><tr><td class="empty">Empty ledger.</td></tr></table>';
   } else if(txView==='sym'){
@@ -1946,6 +1984,9 @@ $('edSave').onclick = ()=>{
   } else if(t.kind==='draw'){
     const h = S.helocs[t.hi], d = h && h.draws[t.i];
     if(d){ d.date=date; d.amount=amt; d.purpose=sel||d.purpose; d.note=note; }
+  } else if(t.kind==='helocInt'){
+    const r = S.helocs[t.hi] && S.helocs[t.hi].interestNotes[t.i];
+    if(r){ r.date=date; r.amount=amt; r.note=note; }
   } else if(t.kind==='propRow'){
     const r = S.properties[t.pi] && S.properties[t.pi][t.list][t.idx];
     if(r){ r.date=date; r.amount=amt; r.note=note; if(t.list==='expenses' && sel) r.kind=sel; }
@@ -1970,6 +2011,13 @@ window.editDraw = (hi,i) => {
     hint: linked ? `${linked} linked investment transaction${linked===1?'':'s'} will stay attached.` : '',
     date:d.date, amount:d.amount, note:d.note, selLabel:'Purpose', selected:d.purpose,
     options:Object.entries(PURPOSES).map(([k,v])=>({value:k,label:v.label})) });
+};
+window.delHInt = (hi,i)=>{ S.helocs[hi].interestNotes.splice(i,1); touch(); };
+window.editHInt = (hi,i)=>{
+  const r = S.helocs[hi] && S.helocs[hi].interestNotes[i]; if(!r) return;
+  openEdit({ target:{kind:'helocInt', hi, i}, title:'Edit interest record',
+    hint:'Interest charged and paid in cash. Recorded for your Line 22100 total; does not change the balance.',
+    date:r.date, amount:r.amount, note:r.note });
 };
 window.editHPay = (hi,i) => {
   const pmt = S.helocs[hi] && S.helocs[hi].payments[i]; if(!pmt) return;
@@ -2206,7 +2254,13 @@ $('txCsv').onclick = ()=>{
 /* --- CSV import (Wealthsimple auto-map + manual mapping) --- */
 const csvDlg = $('csvDialog');
 let csvRows = null, csvHeads = null;
-$('csvImport').onclick = ()=>{ $('csvFile').value=''; $('csvMap').style.display='none'; $('csvGo').disabled=true; csvDlg.showModal(); };
+$('csvImport').onclick = ()=>{
+  $('csvFile').value=''; $('csvMap').style.display='none'; $('csvGo').disabled=true;
+  $('csvLastNote').innerHTML = S.lastImport && S.lastImport.newest
+    ? `<span class="gold">Last import brought in transactions up to ${S.lastImport.newest}.</span> Export from your brokerage starting the day after, to avoid duplicates.`
+    : '';
+  csvDlg.showModal();
+};
 $('csvCancel').onclick = ()=> csvDlg.close();
 $('csvFile').onchange = ()=>{
   const f=$('csvFile').files[0]; if(!f) return;
@@ -2239,7 +2293,7 @@ $('csvGo').onclick = ()=>{
   const gi = id => { const v=$(id).value; return v===''?null:+v; };
   const [iD,iT,iS,iQ,iP,iA] = ['cmDate','cmType','cmSym','cmQty','cmPrice','cmAmt'].map(gi);
   if(iD==null||iT==null||iS==null){ alert('Date, Type, and Symbol columns are required'); return; }
-  let ok=0, skip=0;
+  let ok=0, skip=0, newest=null;
   for(const row of csvRows){
     const rawT=(row[iT]||'').toLowerCase();
     let type=null;
@@ -2250,6 +2304,7 @@ $('csvGo').onclick = ()=>{
     if(!type){ skip++; continue; }
     const date = normalizeDate(row[iD]); const sym=(row[iS]||'').toUpperCase();
     if(!date||!sym){ skip++; continue; }
+    if(!newest || date>newest) newest = date;
     const rec={id:uid(),seq:S.tx.length+ok,type,date,sym,note:'CSV import'};
     if(type==='div'){ rec.amount=Math.abs(parseFloat((row[iA]||'').replace(/[$,]/g,'')))||0; if(!rec.amount){skip++;continue;} }
     else{
@@ -2258,8 +2313,11 @@ $('csvGo').onclick = ()=>{
     }
     S.tx.push(rec); ok++;
   }
+  if(ok){ S.lastImport = {at: today(), newest}; }
   csvDlg.close(); touch();
-  alert(`Imported ${ok} transactions${skip?`, skipped ${skip} unrecognized rows`:''}. Review the ledger, then save your data file.`);
+  alert(`Imported ${ok} transactions${skip?`, skipped ${skip} unrecognized rows`:''}.`
+    + (newest?`\n\nNewest imported transaction: ${newest}. Next time, export from your brokerage starting the day after that.`:'')
+    + `\n\nReview the ledger, then save your data file.`);
 };
 function normalizeDate(s){
   if(!s) return null;
@@ -2273,6 +2331,8 @@ function normalizeDate(s){
 // walking each line's dated events at its stated rate (daily simple accrual).
 function deductibleInterestForYear(year){
   let total = 0; const perLine = [];
+  let recordedTotal = 0;
+  const hasRecorded = S.helocs.some(h=>(h.interestNotes||[]).some(n=>+n.date.slice(0,4)===year));
   const y0 = new Date(year+'-01-01T00:00:00').getTime();
   const y1 = new Date((year+1)+'-01-01T00:00:00').getTime();
   for(const h of S.helocs){
@@ -2309,10 +2369,19 @@ function deductibleInterestForYear(year){
       }
     }
     accrue(y1);
-    perLine.push({name:h.name, interest});
+    // Interest actually charged, from statements, if the user recorded it.
+    // Prorated by this line's deductible share so a mixed-use line isn't
+    // reported as fully deductible.
+    const recRaw = (h.interestNotes||[])
+      .filter(n=>+n.date.slice(0,4)===year)
+      .reduce((a,n)=>a+n.amount,0);
+    const dedShare = totBal>0 ? Math.min(dedBal/totBal,1) : (recRaw>0?1:0);
+    const recorded = recRaw>0 ? recRaw*dedShare : null;
+    perLine.push({name:h.name, interest, recorded, recRaw, dedShare});
     total += interest;
+    recordedTotal += (recorded||0);
   }
-  return {total, perLine};
+  return {total, perLine, recordedTotal, hasRecorded};
 }
 $('taxCalc').onclick = ()=>{
   if($('taxMTR').value===''){
@@ -2321,21 +2390,37 @@ $('taxCalc').onclick = ()=>{
   }
   S.taxMTR = +$('taxMTR').value;
   const year = +$('taxYear').value || new Date().getFullYear();
-  let interest, srcNote;
+  let interest, srcNote, recorded=null, est=null;
   if(S.mode==='light'){
     const row = S.lightYears.find(r=>r.year===year);
     interest = row ? row.interest : 0;
     srcNote = row ? 'from your annual summary' : 'no annual summary for this year';
   } else {
     const r = deductibleInterestForYear(year);
-    interest = r.total; srcNote = 'estimated from ledger (daily accrual at each line\'s stated rate) — reconcile against actual bank statements before filing';
+    // Interest you recorded from statements beats the tool's accrual estimate,
+    // so when it exists it becomes the headline figure and the estimate is shown
+    // beside it as a cross-check.
+    if(r.hasRecorded && r.recordedTotal>0){
+      interest = r.recordedTotal; recorded = r; 
+      srcNote = 'from the interest you recorded off your statements — the figure to report';
+    } else {
+      interest = r.total;
+      srcNote = 'estimated from ledger (daily accrual at each line\'s stated rate) — reconcile against actual bank statements before filing';
+    }
+    est = r.total;
   }
   const refund = S.taxMTR!=null ? interest * S.taxMTR/100 : null;
+  const drift = (recorded && est!=null) ? interest-est : null;
   $('taxStats').innerHTML = `
     <div class="stat"><div class="v gold">${fmt$2(interest)}</div><div class="l">Deductible interest ${year}</div></div>
     <div class="stat"><div class="v">${S.taxMTR!=null?S.taxMTR+'%':'—'}</div><div class="l">Marginal rate</div></div>
     <div class="stat"><div class="v green">${refund!=null?fmt$2(refund):'—'}</div><div class="l">Est. refund (Line 22100)</div></div>
+    ${recorded?`<div class="stat"><div class="v faint">${fmt$2(est)}</div><div class="l">Tool's estimate</div></div>
+    <div class="stat"><div class="v ${Math.abs(drift)>Math.max(est*0.05,25)?'red':'faint'}">${(drift>=0?'+':'')+fmt$2(drift)}</div><div class="l">Recorded vs. estimate</div></div>`:''}
     <div class="stat" style="grid-column:span 2"><div class="l" style="text-transform:none;font-size:.78rem">${srcNote}</div></div>`;
+  $('taxRecNote').innerHTML = recorded
+    ? `<p class="faint">Recorded interest is prorated by each line's deductible share, so a mixed-use line isn't reported as fully deductible. A large gap against the estimate usually means a rate, a draw date, or a payment is missing from the ledger — worth finding before you file, because the statements are what you'd have to defend.</p>`
+    : `<p class="faint">Paying your HELOC interest in cash rather than capitalizing it? Record it on the HELOC tab as <b>Interest charged</b> and this figure will come from your statements instead of the tool's estimate.</p>`;
   touch();
 };
 let rdAutoLink = true;

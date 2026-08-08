@@ -73,6 +73,7 @@ Not sure the strategy suits you? The Simulator answers that before you commit to
 - Opening positions: carry in units and ACB from records you already keep, and track forward from there
 - CSV import (Wealthsimple auto-maps; others via manual column mapping)
 - Superficial loss flagging
+- Record interest charged in cash so Line 22100 comes from your statements rather than an estimate
 - Ledger grouped by symbol, with open positions separated from past holdings
 - Per-event detail: open any transaction to see before → change → after with a plain-English explanation
 - All amounts are treated as Canadian dollars — there is no currency conversion, so convert foreign trades before entering them
@@ -120,6 +121,8 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Dates are build dates; the live site always serves the newest.
+
+**2026-08-09** — Record HELOC interest charged and paid in cash as its own entry: it doesn't touch the balance, and the Tax tab then reports your statement figure for Line 22100 instead of the tool's accrual estimate, showing both side by side so a gap is visible. Interest is prorated by each line's deductible share. CSV import remembers the newest transaction it brought in, so you know where to export from next time. Date columns on the entry tables sort both ways, newest first by default — display only; the engines always compute in true date order. Opening position moved to the end of the transaction type list so Buy stays the default.
 
 **2026-08-08** — New Property tab for rentals and second homes: a mortgage with its own schedule and yearly interest, line-by-line income and expenses split into current and capital, and an ownership-share setting for jointly-owned property. Deliberately record-keeping rather than tax computation — no CCA, no T776, and rental figures are kept separate from Line 22100 investment interest throughout, including in the audit package. HELOC lines can now record which property secures them; lines on another property keep working normally for investment draws but can't use the growing-room limit types, which derive from the principal-residence mortgage.
 
