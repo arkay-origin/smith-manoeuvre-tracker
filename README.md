@@ -26,7 +26,12 @@ You can also just download `index.html` and run it offline. It works exactly the
 
 1. **Mortgage** — principal, rate, compounding basis, start date. Compounding is required and has no default: semi-annual for most Canadian fixed mortgages, often monthly on variable. Your documents state it.
 2. **HELOC** — add your line with its rate basis and credit limit. If your room grows as you repay principal, choose a re-advanceable limit type.
-3. **Property (rental / second home)**
+3. **Properties**
+- One tab for every property: principal residence and any rentals
+- Each holds its own mortgage, credit lines, and records
+- Credit lines are linked to the property that secures them
+
+**Rental / second home**
 - Track a mortgage on another property with its own amortization and interest per year
 - Record income and expenses line by line, split into current and capital
 - Ownership share applied throughout, for jointly-owned property
@@ -121,6 +126,8 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Dates are build dates; the live site always serves the newest.
+
+**2026-08-10** — Restructured around properties. Mortgage and HELOC are no longer separate tabs: every property — your principal residence and any rentals — now holds its own mortgage, its own credit lines, and its own records, selected from one Properties tab. Credit lines record which property secures them, so growing-room limits finally use the right mortgage instead of being disabled off the principal residence. Existing files upgrade automatically on load, and the tool refuses to open files saved by a newer version rather than silently dropping data.
 
 **2026-08-09** — Record HELOC interest charged and paid in cash as its own entry: it doesn't touch the balance, and the Tax tab then reports your statement figure for Line 22100 instead of the tool's accrual estimate, showing both side by side so a gap is visible. Interest is prorated by each line's deductible share. CSV import remembers the newest transaction it brought in, so you know where to export from next time. Date columns on the entry tables sort both ways, newest first by default — display only; the engines always compute in true date order. Opening position moved to the end of the transaction type list so Buy stays the default.
 

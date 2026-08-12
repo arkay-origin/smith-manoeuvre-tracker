@@ -226,10 +226,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div class="sub">SMITH MANOEUVRE TRACKER · CANADA</div>
   <div id="navtabs">
   <button class="navbtn active" data-view="dash">Dashboard</button>
-  <button class="navbtn" data-view="mortgage">Mortgage</button>
-  <button class="navbtn" data-view="heloc">HELOC</button>
   <button class="navbtn" data-view="invest">Investments</button>
-  <button class="navbtn" data-view="property">Property</button>
+  <button class="navbtn" data-view="property">Properties</button>
   <button class="navbtn" data-view="tax">Tax</button>
   <button class="navbtn" data-view="sim">Simulator</button>
   <button class="navbtn" data-view="audit">Audit &amp; Guide</button>
@@ -243,7 +241,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">Build 2026-08-09</div>
+  <div id="version" class="noprint">Build 2026-08-10</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -279,11 +277,11 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
       <span><span class="tag gold">Deductible</span> <span id="lgdd" class="num">$0</span></span>
     </div>
     <div class="cycle noprint">
-      <span role="link" tabindex="0" data-goto="mortgage">Pay mortgage</span><span class="arr">→</span>
-      <span role="link" tabindex="0" data-goto="heloc">Re-borrow HELOC</span><span class="arr">→</span>
+      <span role="link" tabindex="0" data-goto="property">Pay mortgage</span><span class="arr">→</span>
+      <span role="link" tabindex="0" data-goto="property">Re-borrow HELOC</span><span class="arr">→</span>
       <span role="link" tabindex="0" data-goto="invest">Invest</span><span class="arr">→</span>
       <span role="link" tabindex="0" data-goto="tax">Dividends &amp; refund</span><span class="arr">→</span>
-      <span role="link" tabindex="0" data-goto="mortgage">Prepay</span><span class="arr">↺</span>
+      <span role="link" tabindex="0" data-goto="property">Prepay</span><span class="arr">↺</span>
     </div>
   </div>
 
@@ -292,11 +290,11 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <p class="faint">Four steps, in this order. Each one feeds the next.</p>
     <ol class="steps">
       <li><b>Set up your mortgage</b> — principal, rate, compounding basis, start date.
-        <button class="small" data-goto="mortgage">Go to Mortgage</button></li>
+        <button class="small" data-goto="property">Go to Properties</button></li>
       <li><b>Add your HELOC line</b> — rate basis and credit limit. Use a re-advanceable limit type if your room grows as you repay principal.
-        <button class="small" data-goto="heloc">Go to HELOC</button></li>
+        <button class="small" data-goto="property">Go to Properties</button></li>
       <li><b>Record draws as you make them</b>, tagged by purpose. An investment draw offers to log the purchase in the same step.
-        <button class="small" data-goto="heloc">Go to HELOC</button></li>
+        <button class="small" data-goto="property">Go to Properties</button></li>
       <li><b>Set your marginal tax rate</b> so deductible interest and refund estimates work.
         <button class="small" data-goto="tax">Go to Tax</button></li>
     </ol>
@@ -326,8 +324,47 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 </section>
 
 <!-- ========== MORTGAGE ========== -->
-<section class="view" id="view-mortgage">
-  <div class="pagehead"><h1>Mortgage</h1><div class="acts"></div></div>
+
+
+<!-- ========== HELOC ========== -->
+
+
+<!-- ========== INVESTMENTS ========== -->
+<section class="view" id="view-invest">
+  <div class="pagehead"><h1>Investments</h1>
+    <div class="acts"><button id="csvImport">Import CSV</button><button class="primary" id="txAddBtn">+ Add transaction</button></div>
+  </div>
+  <p class="faint">ACB uses the CRA average-cost method. Distributions with return of capital reduce ACB; reinvested (phantom) distributions increase it. Splits supported, including fractional handling.
+    <br><b>All amounts are treated as Canadian dollars.</b> There is no currency conversion here — CRA requires ACB in CAD converted at each transaction's date rate, so convert foreign-currency trades before entering them. Entering USD figures directly will produce an ACB and a realized gain that are wrong.</p>
+  <p class="faint" id="lastImportNote" style="margin:-.3rem 0 .6rem"></p>
+  <div class="card"><div class="spread"><h2>Holdings</h2><span class="faint">book values from ledger</span></div>
+    <p class="faint" id="holdNote" style="margin:.1rem 0 .5rem"></p>
+    <div class="scrollx"><table id="holdTable"></table></div></div>
+
+  <div class="card" id="pastHoldings" style="display:none">
+    <div class="spread"><h2>Past holdings</h2><span class="faint">disposed — realized gain/loss still reports on Schedule 3</span></div>
+    <div class="scrollx"><table id="pastTable"></table></div>
+  </div>
+  <div class="card"><div class="spread"><h2>Transaction ledger</h2>
+      <div class="row"><div class="modewrap"><button id="txvAll">All</button><button id="txvSym" class="on">By symbol</button></div>
+      <button class="small" id="txCsv">Export CSV</button></div></div>
+    <div class="scrollx" id="txWrap"></div></div>
+  <div class="card sub"><h3>Superficial loss warning</h3>
+    <p class="faint">This tool flags sells at a loss with a repurchase of the same symbol within ±30 days, but cannot catch buys in other accounts (spouse, RRSP, TFSA). Those still trigger the rule — check manually.</p>
+    <div id="slWarn"></div></div>
+</section>
+
+<!-- ========== TAX ========== -->
+<!-- ========== PROPERTIES ========== -->
+<section class="view" id="view-property">
+  <div class="pagehead"><h1>Properties</h1>
+    <div class="acts"><button class="primary" id="pAddProp">+ Add property</button></div></div>
+  <div class="modewrap" id="propSwitch" style="margin-bottom:.9rem"></div>
+
+  <!-- principal residence: mortgage + credit lines -->
+  <div id="pane-primary">
+
+  
 
   <!-- Configuration first: collapsed once the mortgage is set up -->
   <details id="mortgageConfig">
@@ -457,11 +494,9 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     </div>
     <div class="scrollx"><table id="mSched"></table></div>
   </div>
-</section>
 
-<!-- ========== HELOC ========== -->
-<section class="view" id="view-heloc">
-  <div class="pagehead"><h1>HELOC</h1><div class="acts"><button class="primary" id="hAddLine">+ Add credit line</button></div></div>
+
+  
   <p class="faint">Multiple lines supported (multi-lender setups). Draws are tagged by purpose so investment principal and capitalized interest never blur together — that split is what keeps your deduction clean.</p>
   <details><summary>How this tool calculates HELOC interest — read before relying on the numbers</summary>
     <p><b>Simple daily accrual, actual/365.</b> Interest is accrued daily on the deductible balance at the rate in force, with no internal compounding and no leap-year adjustment. Most Canadian HELOCs accrue daily and charge monthly, so this is close — but it is an <em>estimate</em>.</p>
@@ -469,46 +504,18 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <p><b>Principal payments split pro-rata.</b> On a line holding both deductible and non-deductible balances, a payment reduces each in proportion to its share. That reflects the CRA's general position on mixed-use borrowing — you normally cannot direct repayments at the non-deductible portion first. If your situation supports different tracing, the figures here won't match your filing position.</p>
     <p class="gold">Your lender's statements govern. Reconcile against them before filing.</p>
   </details>
+  <div class="spread" style="margin-top:1.2rem"><h2>Credit lines</h2>
+    <div class="acts"><button class="primary" id="hAddLine">+ Add credit line</button></div></div>
   <div id="helocList"></div>
-</section>
 
-<!-- ========== INVESTMENTS ========== -->
-<section class="view" id="view-invest">
-  <div class="pagehead"><h1>Investments</h1>
-    <div class="acts"><button id="csvImport">Import CSV</button><button class="primary" id="txAddBtn">+ Add transaction</button></div>
   </div>
-  <p class="faint">ACB uses the CRA average-cost method. Distributions with return of capital reduce ACB; reinvested (phantom) distributions increase it. Splits supported, including fractional handling.
-    <br><b>All amounts are treated as Canadian dollars.</b> There is no currency conversion here — CRA requires ACB in CAD converted at each transaction's date rate, so convert foreign-currency trades before entering them. Entering USD figures directly will produce an ACB and a realized gain that are wrong.</p>
-  <p class="faint" id="lastImportNote" style="margin:-.3rem 0 .6rem"></p>
-  <div class="card"><div class="spread"><h2>Holdings</h2><span class="faint">book values from ledger</span></div>
-    <p class="faint" id="holdNote" style="margin:.1rem 0 .5rem"></p>
-    <div class="scrollx"><table id="holdTable"></table></div></div>
 
-  <div class="card" id="pastHoldings" style="display:none">
-    <div class="spread"><h2>Past holdings</h2><span class="faint">disposed — realized gain/loss still reports on Schedule 3</span></div>
-    <div class="scrollx"><table id="pastTable"></table></div>
-  </div>
-  <div class="card"><div class="spread"><h2>Transaction ledger</h2>
-      <div class="row"><div class="modewrap"><button id="txvAll">All</button><button id="txvSym" class="on">By symbol</button></div>
-      <button class="small" id="txCsv">Export CSV</button></div></div>
-    <div class="scrollx" id="txWrap"></div></div>
-  <div class="card sub"><h3>Superficial loss warning</h3>
-    <p class="faint">This tool flags sells at a loss with a repurchase of the same symbol within ±30 days, but cannot catch buys in other accounts (spouse, RRSP, TFSA). Those still trigger the rule — check manually.</p>
-    <div id="slWarn"></div></div>
-</section>
-
-<!-- ========== TAX ========== -->
-<!-- ========== PROPERTY ========== -->
-<section class="view" id="view-property">
-  <div class="pagehead"><h1>Property</h1><div class="acts"><button class="primary" id="pAddProp">+ Add property</button></div></div>
-  <div class="disclaimer">
-    <strong>Record-keeping, not a tax return.</strong> This tracks what you received and what you spent so the numbers are in one place at tax time. It does <b>not</b> decide what's deductible, does not model capital cost allowance, and does not produce a T776. Current repairs and capital improvements are totalled separately because they're treated differently — a repair is generally claimed the year you pay it, an improvement is added to the building's cost base instead. Which is which is a judgement call for your accountant.
-    <br>Rental mortgage interest and rental expenses go on <b>T776</b> against rental income. That's a different stream from the investment interest on Line 22100 that the rest of this tool tracks — the two are never combined here.
-  </div>
-  <div id="propWrap"></div>
-  <div class="card" id="propEmpty">
-    <p class="faint">No properties yet. Add one to track a rental or second-property mortgage alongside its income and expenses.
-    Your principal residence and its mortgage stay on the <b>Mortgage</b> tab — that's the one the conversion strategy runs against.</p>
+  <!-- other properties: mortgage, credit lines, cash flow -->
+  <div id="pane-other" style="display:none">
+    <div class="disclaimer">
+      <strong>Record-keeping, not a tax return.</strong> Income and expenses here are totalled so the numbers are in one place at tax time. This does <b>not</b> decide what's deductible, does not model capital cost allowance, and does not produce a T776. Rental interest and expenses belong on T776 against rental income — a separate stream from the Line 22100 investment interest tracked elsewhere in this tool, and the two are never combined.
+    </div>
+    <div id="propWrap"></div>
   </div>
 </section>
 
@@ -625,8 +632,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div class="card noprint">
     <h2>Record-keeping guide <span class="faint" style="font-size:.72rem;text-transform:none">— reference only, not included in the printed package</span></h2>
     <details><summary>Using this tool — first-time setup</summary>
-      <p>Mortgage first: principal, rate, compounding basis, start date. Compounding is required and has no default — semi-annual for most Canadian fixed mortgages, often monthly on variable. Your documents state it.</p>
-      <p>Then add your HELOC line with its rate basis and limit. If your room grows as you repay principal, pick a re-advanceable limit type. Then set your marginal tax rate on the Tax tab so deductible interest and refund estimates work.</p>
+      <p>On <b>Properties</b>, start with the principal residence: principal, rate, compounding basis, start date. Compounding is required and has no default — semi-annual for most Canadian fixed mortgages, often monthly on variable. Your documents state it.</p>
+      <p>Then add your credit line on the same tab, with its rate basis and limit. If your room grows as you repay principal, pick a re-advanceable limit type. Then set your marginal tax rate on the Tax tab so deductible interest and refund estimates work.</p>
       <p>Backfilling history? Enter events with their real dates in any order — the schedule and the ledger both replay from dates, not entry order.</p></details>
     <details><summary>Using this tool — a typical month</summary>
       <p>Record the prepayment on <b>Mortgage</b>, tagged with its source. Record the matching draw on <b>HELOC</b>, tagged Investment — that offers the purchase dialog so the buy lands in the ledger linked to the draw. If you paid HELOC interest in cash rather than capitalizing it, record that as a principal payment.</p>
@@ -727,17 +734,24 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 /* =================================================================
    STATE & PERSISTENCE — client-side only, JSON file save/load
    ================================================================= */
+const SCHEMA_VERSION = 2;
+// A mortgage — identical shape for every property, so one engine serves all.
+const blankMortgage = () => ({
+  principal:null, rate:null, amortYears:null, start:null, freq:'12', compounding:null,
+  paymentMode:'auto', customPayment:null, paymentChanges:[], freqChanges:[],
+  rateChanges:[], prepayments:[] });
+// A property owns its mortgage and its credit lines. The principal residence is
+// just the one flagged isPrimary — its mortgage is the conversion target.
+const blankProperty = (name, isPrimary) => ({
+  id:uid(), name, isPrimary:!!isPrimary, value:null, share:100, address:'',
+  mortgage: blankMortgage(), income: [], expenses: [] });
 const BLANK = () => ({
-  version: 1,
+  version: SCHEMA_VERSION,
   mode: 'full',                       // 'light' | 'full'
-  mortgage: { principal:null, rate:null, amortYears:null, start:null, freq:'12',
-              compounding:null,
-              paymentMode:'auto', customPayment:null, paymentChanges:[], freqChanges:[],
-              rateChanges:[], prepayments:[] },
-  helocs: [],                         // {id,name,rate,limit,draws:[{date,amount,purpose,note}],payments:[{date,amount,note}]}
+  properties: [ blankProperty('Principal residence', true) ],
+  helocs: [],                         // each line carries propertyId → which mortgage backs it
   tx: [],                             // investment transactions
   lastImport: null,                   // {at, newest} — so you know what to export next time
-  properties: [],                     // {id,name,share,mort:{...},income:[],expenses:[]}
   refunds: [],                        // {year,amount,to,note}
   lightYears: [],                     // annual summaries
   taxMTR: null,
@@ -745,7 +759,73 @@ const BLANK = () => ({
   autoSave:false,          // explicit opt-in; never inferred from having a file open
   primeHistory: [],                   // [{date,prime}] shared timeline for prime-linked HELOCs
 });
-let S = BLANK();
+
+/* ---------- schema migration ----------------------------------------------
+   v1 kept the principal residence in S.mortgage and its lines in S.helocs,
+   with other properties in a parallel S.properties array of a different shape.
+   v2 folds everything into one properties array. Migration is one-way, so the
+   loader warns and suggests taking a copy first.
+   -------------------------------------------------------------------------- */
+function migrateState(d){
+  if(!d || typeof d!=='object') return d;
+  const v = d.version || 1;
+  if(v > SCHEMA_VERSION)
+    throw new Error(`This file was saved by a newer version of the tracker (format ${v}; this build reads ${SCHEMA_VERSION}). Open it with the current version instead — loading it here would lose data.`);
+  if(v >= 2) return d;
+
+  const props = [];
+  const primary = blankProperty('Principal residence', true);
+  if(d.mortgage) primary.mortgage = Object.assign(blankMortgage(), d.mortgage);
+  props.push(primary);
+
+  // Other properties: rename mort -> mortgage, adopt the common shape.
+  (d.properties||[]).forEach(op=>{
+    const np = blankProperty(op.name||'Property', false);
+    np.id = op.id || np.id;
+    np.share = op.share==null?100:op.share;
+    np.address = op.address||'';
+    if(op.mort) np.mortgage = Object.assign(blankMortgage(), op.mort);
+    np.income = op.income||[]; np.expenses = op.expenses||[];
+    props.push(np);
+  });
+
+  // Lines stay in one array but gain propertyId, so each knows which mortgage
+  // backs it. 'other' with nowhere to attach falls back to the primary, flagged.
+  const others = props.filter(p=>!p.isPrimary);
+  (d.helocs||[]).forEach(h=>{
+    if(h.securedBy==='other' && others.length) h.propertyId = others[0].id;
+    else {
+      if(h.securedBy==='other') h.needsAssignment = true;
+      h.propertyId = primary.id;
+    }
+    delete h.securedBy;
+  });
+  d.helocs = d.helocs||[];
+
+  d.properties = props;
+  delete d.mortgage;
+  d.version = SCHEMA_VERSION;
+  d.migratedFrom = v;
+  return d;
+}
+
+/* Compatibility accessors. Existing code reads S.mortgage and S.helocs for the
+   principal residence; these keep that working against the new shape.
+   non-enumerable so they never serialize into the saved file. */
+function primaryOf(st){
+  return (st.properties||[]).find(p=>p.isPrimary) || (st.properties||[])[0] || null;
+}
+function primaryProperty(){ return primaryOf(S); }
+// Accessors close over the object they're installed on, not the global, so a
+// state object is self-consistent before it's assigned to S.
+function installAccessors(obj){
+  Object.defineProperty(obj, 'mortgage', {
+    configurable:true, enumerable:false,
+    get(){ const p = primaryOf(obj); return p ? p.mortgage : blankMortgage(); }
+  });
+  return obj;
+}
+let S = installAccessors(BLANK());
 let schedView = 'yearly';
 let schedShowAll = false;
 let txView = 'sym';
@@ -763,6 +843,7 @@ function sortHead(key, label){
   return `<th class="sortable" onclick="toggleSort('${key}')" title="Sort by date">${label} <span class="sortarrow">${sortDir[key]==='asc'?'▲':'▼'}</span></th>`;
 }
 let fileHandle = null;
+let migratedThisLoad = false;   // set when the loaded file was upgraded from an older format
 let dirty = false;
 
 const $ = id => document.getElementById(id);
@@ -774,7 +855,9 @@ const fmtN = (n,d=4) => (n==null||isNaN(n)) ? '—' : Number(n).toFixed(d).repla
 const fmtMonths = mo => { const y=Math.floor(mo/12), r=mo%12;
   return (y?y+'y':'') + (y&&r?' ':'') + (r||!y?r+'mo':''); };
 const esc = s => String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const uid = () => Math.random().toString(36).slice(2,9);
+// Function declaration, not a const arrow: it is hoisted, so blankProperty()
+// can call it from BLANK() during the initial state build above.
+function uid(){ return Math.random().toString(36).slice(2,9); }
 const today = () => new Date().toISOString().slice(0,10);
 
 function touch(){ dirty = true; renderAll(); autoSaveMaybe(); }
@@ -790,6 +873,11 @@ function suggestedFileName(){
 // forceNew=true is "Save as": always pick a fresh file, then RE-LINK to it so
 // later saves and auto-save follow the copy you just made.
 async function saveFile(forceNew){
+  if(migratedThisLoad && !forceNew && fileHandle){
+    if(!confirm(`This file was upgraded from an older format when you opened it.\n\n`
+      + `Saving now replaces "${linkedName()}" with the new format, and older versions of the tracker won't be able to read it.\n\n`
+      + `Cancel to use "Save as / new copy" instead and keep the original as a backup.`)) return;
+  }
   try{
     if(window.showSaveFilePicker){
       if(!fileHandle || forceNew){
@@ -799,6 +887,7 @@ async function saveFile(forceNew){
       }
       const w = await fileHandle.createWritable();
       await w.write(serialize()); await w.close();
+      migratedThisLoad = false;   // the upgraded format is now on disk by choice
       setSaveState((forceNew?'Saved a copy · now linked to ':'Saved · ')+linkedName()+' · '+new Date().toLocaleTimeString());
       updateAutosaveBtn();
       dirty = false; return;
@@ -827,11 +916,26 @@ async function loadFile(){
   inp.click();
 }
 function ingest(text){
-  try{ const d = JSON.parse(text);
-    if(typeof d!=='object'||!d.version) throw new Error('not a tracker file');
-    S = Object.assign(BLANK(), d);
+  try{ const raw = JSON.parse(text);
+    if(typeof raw!=='object'||!raw.version) throw new Error('not a tracker file');
+    const fromVersion = raw.version;
+    const d = migrateState(raw);                 // throws if the file is newer than this build
+    S = installAccessors(Object.assign(BLANK(), d));
+    if(!S.properties || !S.properties.length) S.properties = [blankProperty('Principal residence', true)];
+    if(!S.properties.some(p=>p.isPrimary)) S.properties[0].isPrimary = true;
     const cfgEl = $('mortgageConfig'); if(cfgEl) delete cfgEl.dataset.touched;
     hydrateForms(); renderAll(); wireSimAutoRerun(); setSaveState('Data loaded');
+    if(fromVersion < SCHEMA_VERSION){
+      // Migration is one-way. Never let auto-save quietly overwrite the original
+      // file with the new format — the user opts back in once they're satisfied.
+      S.autoSave = false; migratedThisLoad = true;
+      const stray = S.helocs.filter(h=>h.needsAssignment).length;
+      alert(`This file was saved in an older format and has been upgraded.\n\n`
+        + `Your principal residence mortgage and its credit lines are now under Properties, alongside any other properties you had.\n\n`
+        + (stray?`${stray} credit line${stray===1?' was':'s were'} marked as secured by another property, but there was no such property to attach ${stray===1?'it':'them'} to — ${stray===1?'it is':'they are'} on the principal residence for now and flagged for you to move.\n\n`:'')
+        + `Your original file has not been touched, and auto-save has been switched off so it can't be overwritten by accident.\n\n`
+        + `Check everything looks right, then use "Save as / new copy" to write the upgraded version — keeping the old file as a backup.`);
+    }
   }catch(e){ alert('Could not read that file: '+e.message); }
 }
 let autoTimer = null;
@@ -894,7 +998,7 @@ $('btnAutosave').onclick = async ()=>{
 };
 $('btnWipe').onclick = ()=>{
   if(confirm('Erase ALL data in this tab? Your saved JSON file (if any) is not deleted.')){
-    S = BLANK(); fileHandle = null; hydrateForms(); renderAll();
+    S = installAccessors(BLANK()); fileHandle = null; hydrateForms(); renderAll();
     setSaveState('Cleared — no file linked'); updateAutosaveBtn();
   }
 };
@@ -1378,7 +1482,7 @@ $('mApply').onclick = ()=>{
   }
   $('mortgageConfig').dataset.touched = '1';
   setConfigOpen(false);
-  $('view-mortgage').scrollIntoView({behavior:'smooth', block:'start'});
+  $('view-property').scrollIntoView({behavior:'smooth', block:'start'});
 };
 $('pcAdd').onclick = ()=>{
   const d=$('pcDate').value, a=+$('pcAmt').value;
@@ -1428,7 +1532,7 @@ $('hAddLine').onclick = ()=>{
   S.helocs.push({id:uid(), name, limit:null, draws:[], payments:[],
     rateMode:'fixed', delta:null, rateHistory:[],
     limitMode:'fixed', homeValue:null, maxLTV:null, initialRoom:null, growShare:100,
-    securedBy:'primary', interestNotes:[]});
+    propertyId:(primaryProperty()||{}).id, interestNotes:[]});
   touch();
 };
 // Backward-compat + normalization: fold any legacy single `rate` into rateHistory.
@@ -1450,7 +1554,7 @@ function migrateHeloc(h){
   if(h.maxLTV===undefined) h.maxLTV = null;
   if(h.initialRoom===undefined) h.initialRoom = null;
   if(h.growShare===undefined) h.growShare = 100;
-  if(!h.securedBy) h.securedBy = 'primary';
+  if(!h.propertyId){ const pp = primaryProperty(); if(pp) h.propertyId = pp.id; }
 }
 // Effective credit limit for a line, today. For a re-advanceable line linked to
 // the mortgage, the limit grows as principal is repaid:
@@ -1461,23 +1565,26 @@ function helocLimitNow(h){
   //         HELOC is the SM line; overstates it when the limit is sub-divided.
   // 'grow' — this sub-account's own opening room, growing by the share of
   //         mortgage principal repaid that gets credited back to this line.
-  // Both dynamic modes derive room from THE mortgage on the Mortgage tab. A line
-  // secured by another property would be credited with the wrong property's
-  // principal, so those modes are unavailable there.
-  if(h.securedBy && h.securedBy!=='primary' && h.limitMode!=='fixed')
-    return {limit:h.limit ?? null, dynamic:false, otherProperty:true};
+  // Room derives from the mortgage on the property that actually secures this
+  // line — which is why lines carry propertyId.
+  const own = S.properties.find(p=>p.id===h.propertyId) || primaryProperty();
+  const ownMort = own ? own.mortgage : S.mortgage;
+  const mortBalOf = () => {
+    if(own && own.isPrimary){ const st = mortgageStats(buildSchedule()); return st ? st.balNow : (ownMort.principal||0); }
+    const sc = propSchedule(ownMort); return sc ? sc.balNow : (ownMort.principal||0);
+  };
   if(h.limitMode==='readvanceable'){
     if(!h.homeValue || !h.maxLTV) return {limit:null, dynamic:true};
-    const st = mortgageStats(buildSchedule());
-    const mortBal = st ? st.balNow : (S.mortgage.principal||0);
+    const mortBal = mortBalOf();
     const lim = Math.max(h.homeValue*(h.maxLTV/100) - mortBal, 0);
     return {limit:lim, dynamic:true,
       detail:`${fmt$(h.homeValue)} × ${h.maxLTV}% − ${fmt$(mortBal)} mortgage`};
   }
   if(h.limitMode==='grow'){
     if(h.initialRoom==null) return {limit:null, dynamic:true};
-    const st = mortgageStats(buildSchedule());
-    const paid = st ? st.prinPaidNow : 0;
+    let paid = 0;
+    if(own && own.isPrimary){ const st = mortgageStats(buildSchedule()); paid = st ? st.prinPaidNow : 0; }
+    else { const sc = propSchedule(ownMort); paid = sc ? (ownMort.principal||0) - sc.balNow : 0; }
     const share = (h.growShare==null ? 100 : h.growShare)/100;
     const growth = paid*share;
     return {limit: h.initialRoom + growth, dynamic:true,
@@ -1548,9 +1655,8 @@ function renderHelocs(){
          <div class="field"><label>Effective rate today</label><input disabled value="${rNow!=null?rNow.toFixed(2)+'%':'add a rate below'}"></div>`;
     // credit-limit block: fixed limit, or re-advanceable derived from LTV
     const securedSel = `<div class="field"><label>Secured by</label>
-        <select onchange="setHeloc(${hi},'securedBy',this.value)">
-          <option value="primary"${h.securedBy==='primary'?' selected':''}>Principal residence (the Mortgage tab)</option>
-          <option value="other"${h.securedBy==='other'?' selected':''}>Another property — rental or second home</option>
+        <select onchange="setHeloc(${hi},'propertyId',this.value)">
+          ${S.properties.map(pp=>`<option value="${pp.id}"${h.propertyId===pp.id?' selected':''}>${esc(pp.name)}${pp.isPrimary?' (principal residence)':''}</option>`).join('')}
         </select></div>`;
     const limitSel = sel => `<div class="field"><label>Limit type</label>
         <select onchange="setHeloc(${hi},'limitMode',this.value)">
@@ -1594,10 +1700,11 @@ function renderHelocs(){
         <div class="grid g3" style="margin-bottom:.4rem">
           ${rateBlock}${securedSel}${limitBlock}
         </div>
-        ${h.securedBy==='other' ? `<div class="disclaimer" style="margin-bottom:.7rem">
-          <strong>Secured by another property.</strong> Deductibility follows what the money was <em>used for</em>, not what secures the line — so investment draws here are still Line 22100 interest and are tracked normally.
-          <br>Two limits on what this tool can do: the growing-room limit types are unavailable, because they derive room from the principal-residence mortgage and would credit this line with the wrong property's principal — use a fixed limit. And if this line is ever drawn for rental expenses or improvements, that portion's interest belongs on <b>T776</b> against rental income, not Line 22100. This tool won't split a line across two tax forms. Keep it investment-only, or track the rest separately.
-        </div>`:''}
+        ${(()=>{const op=S.properties.find(pp=>pp.id===h.propertyId); return op && !op.isPrimary ? `<div class="disclaimer" style="margin-bottom:.7rem">
+          <strong>Secured by ${esc(op.name)}.</strong> Deductibility follows what the money was <em>used for</em>, not what secures the line — so investment draws here are still Line 22100 interest and are tracked normally. Growing-room limits use that property's mortgage.
+          <br>One limit: if this line is ever drawn for rental expenses or improvements, that portion's interest belongs on <b>T776</b> against rental income, not Line 22100. This tool won't split a line across two tax forms — keep it investment-only, or track the rest separately.
+        </div>`:''; })()}
+        ${h.needsAssignment?'<div class="disclaimer" style="margin-bottom:.7rem"><strong>Needs a property.</strong> This line was marked as secured by another property when your file was upgraded, but there was none to attach it to. Pick the right one above.</div>':''}
         ${lim.dynamic && lim.detail ? `<p class="faint" style="margin:-.1rem 0 .5rem">Room grows as you pay down the mortgage: limit = <b>${lim.detail}</b> = ${fmt$(lim.limit)}. ${roomAvail!=null&&roomAvail<0?'<span class="red">You are over the derived limit.</span>':''}</p>`:''}
         ${h.limitMode==='readvanceable' && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV.</span> Max LTV is usually 65% for the revolving portion, or up to 80% including your mortgage — check your product.</p>':''}
         ${h.limitMode==='grow' && h.initialRoom==null ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter this line\'s opening room.</span> Mortgage principal you repay is added to it. Use this when one global limit is split across sub-accounts — an LTV figure would capture the whole limit, not just this line.</p>':''}
@@ -1635,7 +1742,11 @@ function renderHelocs(){
     </div>`;
   }).join('');
 }
-window.setHeloc = (hi,k,v)=>{ S.helocs[hi][k]=(v===0? 0 : (v||null)); touch(); };
+window.setHeloc = (hi,k,v)=>{
+  S.helocs[hi][k]=(v===0? 0 : (v||null));
+  if(k==='propertyId') delete S.helocs[hi].needsAssignment;
+  touch();
+};
 window.setRateMode = (hi,mode)=>{ S.helocs[hi].rateMode = mode; touch(); };
 window.renameHeloc = hi=>{ const n=prompt('New name', S.helocs[hi].name); if(n){ S.helocs[hi].name=n; touch(); } };
 window.delHeloc = hi=>{ if(confirm('Delete this line and all its history?')){ S.helocs.splice(hi,1); touch(); } };
@@ -2916,7 +3027,7 @@ function renderDash(){
     // Rental / second-property mortgages: already deductible against rental
     // income, so they are NOT conversion targets and stay out of nd/dd entirely.
     propDebt = S.properties.reduce((a,pr)=>{
-      const sc = propSchedule(pr.mort);
+      const sc = propSchedule(pr.mortgage);
       return a + (sc ? sc.balNow*((pr.share==null?100:pr.share)/100) : 0);
     }, 0);
     const {pos} = computeBook();
@@ -3058,11 +3169,7 @@ function hydrateForms(){
    already deductible against rental income (T776), so converting it
    isn't the goal and it never touches the conversion bar.
    ================================================================= */
-function blankProperty(name){
-  return {id:uid(), name, share:100, address:'',
-    mort:{principal:null, rate:null, amortYears:null, start:null, freq:'12', compounding:null},
-    income:[], expenses:[]};
-}
+
 // Plain forward amortization — no prepayments or rate changes. Enough to report
 // interest per year, which is the number that matters for the rental return.
 function propSchedule(m){
@@ -3090,7 +3197,7 @@ function propSchedule(m){
 }
 function propYearRows(pr){
   const years = new Set();
-  const sch = propSchedule(pr.mort);
+  const sch = propSchedule(pr.mortgage);
   if(sch) Object.keys(sch.byYear).forEach(y=>years.add(y));
   pr.income.forEach(r=>years.add(r.date.slice(0,4)));
   pr.expenses.forEach(r=>years.add(r.date.slice(0,4)));
@@ -3104,11 +3211,21 @@ function propYearRows(pr){
             net:(inc-cur-mi)*share};
   });
 }
+let activeProp = 0;   // index into S.properties
+window.selectProp = i => { activeProp = i; renderProperties(); };
 function renderProperties(){
+  if(activeProp >= S.properties.length) activeProp = 0;
+  const cur = S.properties[activeProp] || primaryProperty();
+  $('propSwitch').innerHTML = S.properties.map((pp,i)=>
+    `<button class="${i===activeProp?'on':''}" onclick="selectProp(${i})">${esc(pp.name)}</button>`).join('');
+  const onPrimary = !!(cur && cur.isPrimary);
+  $('pane-primary').style.display = onPrimary ? '' : 'none';
+  $('pane-other').style.display   = onPrimary ? 'none' : '';
+  if(onPrimary) return;               // primary pane is rendered by renderMortgage/renderHelocs
   const wrap = $('propWrap');
-  $('propEmpty').style.display = S.properties.length ? 'none' : '';
-  wrap.innerHTML = S.properties.map((pr,pi)=>{
-    const sch = propSchedule(pr.mort);
+  wrap.innerHTML = [cur].map((pr)=>{
+    const pi = S.properties.indexOf(pr);
+    const sch = propSchedule(pr.mortgage);
     const yrs = propYearRows(pr);
     const share = pr.share==null?100:pr.share;
     const thisYear = String(new Date().getFullYear());
@@ -3141,19 +3258,19 @@ function renderProperties(){
         <hr>
         <h3>Mortgage on this property</h3>
         <div class="grid g3">
-          <div class="field"><label>Balance / original principal $</label><input type="number" step="0.01" value="${pr.mort.principal??''}" onchange="setPropM(${pi},'principal',this.value===''?null:+this.value)"></div>
-          <div class="field"><label>Annual rate %</label><input type="number" step="0.001" value="${pr.mort.rate??''}" onchange="setPropM(${pi},'rate',this.value===''?null:+this.value)"></div>
-          <div class="field"><label>Amortization (years)</label><input type="number" step="1" value="${pr.mort.amortYears??''}" onchange="setPropM(${pi},'amortYears',this.value===''?null:+this.value)"></div>
-          <div class="field"><label>Start date</label><input type="date" value="${pr.mort.start||''}" onchange="setPropM(${pi},'start',this.value||null)"></div>
+          <div class="field"><label>Balance / original principal $</label><input type="number" step="0.01" value="${pr.mortgage.principal??''}" onchange="setPropM(${pi},'principal',this.value===''?null:+this.value)"></div>
+          <div class="field"><label>Annual rate %</label><input type="number" step="0.001" value="${pr.mortgage.rate??''}" onchange="setPropM(${pi},'rate',this.value===''?null:+this.value)"></div>
+          <div class="field"><label>Amortization (years)</label><input type="number" step="1" value="${pr.mortgage.amortYears??''}" onchange="setPropM(${pi},'amortYears',this.value===''?null:+this.value)"></div>
+          <div class="field"><label>Start date</label><input type="date" value="${pr.mortgage.start||''}" onchange="setPropM(${pi},'start',this.value||null)"></div>
           <div class="field"><label>Payment frequency</label>
             <select onchange="setPropM(${pi},'freq',this.value)">
-              ${['12','26','26a','52','52a'].map(f=>`<option value="${f}"${pr.mort.freq===f?' selected':''}>${freqLabel(f)}</option>`).join('')}
+              ${['12','26','26a','52','52a'].map(f=>`<option value="${f}"${pr.mortgage.freq===f?' selected':''}>${freqLabel(f)}</option>`).join('')}
             </select></div>
           <div class="field"><label>Interest compounding <span class="red">*</span></label>
             <select onchange="setPropM(${pi},'compounding',this.value||null)">
-              <option value=""${!pr.mort.compounding?' selected':''}>Select — check your documents</option>
+              <option value=""${!pr.mortgage.compounding?' selected':''}>Select — check your documents</option>
               ${[['2','Semi-annual'],['12','Monthly'],['match','Matches payment cycle'],['1','Annual'],['4','Quarterly'],['365','Daily']]
-                .map(([v,l])=>`<option value="${v}"${pr.mort.compounding===v?' selected':''}>${l}</option>`).join('')}
+                .map(([v,l])=>`<option value="${v}"${pr.mortgage.compounding===v?' selected':''}>${l}</option>`).join('')}
             </select></div>
         </div>
         ${sch?`<p class="faint">Calculated payment ${fmt$2(sch.pay)} per period. This schedule is a plain amortization — it doesn't model prepayments or rate changes, so reconcile against your statements.</p>`:'<p class="faint">Fill in the mortgage details to see interest per year. Leave blank if this property has no mortgage.</p>'}
@@ -3208,12 +3325,16 @@ function renderProperties(){
 }
 $('pAddProp').onclick = ()=>{
   const n = prompt('Property name', 'Rental property'); if(!n) return;
-  S.properties.push(blankProperty(n.trim())); touch();
+  S.properties.push(blankProperty(n.trim(), false)); touch();
 };
 window.renameProp = pi => { const n=prompt('Property name', S.properties[pi].name); if(n){ S.properties[pi].name=n.trim(); touch(); } };
-window.delProp = pi => { if(confirm(`Delete "${S.properties[pi].name}" and all its records?`)){ S.properties.splice(pi,1); touch(); } };
+window.delProp = pi => {
+  const pr = S.properties[pi];
+  if(pr.isPrimary){ alert('The principal residence can\'t be deleted — it\'s the property the conversion strategy runs against. Rename it or clear its mortgage fields instead.'); return; }
+  if(confirm(`Delete "${pr.name}" and all its records — mortgage, credit lines, income and expenses?`)){ S.properties.splice(pi,1); touch(); }
+};
 window.setProp  = (pi,k,v)=>{ S.properties[pi][k]=v; touch(); };
-window.setPropM = (pi,k,v)=>{ S.properties[pi].mort[k]=v; touch(); };
+window.setPropM = (pi,k,v)=>{ S.properties[pi].mortgage[k]=v; touch(); };
 window.addPropIncome = pi => {
   const d=$(`pi-date-${pi}`).value, a=+$(`pi-amt-${pi}`).value;
   if(!d||!a){ alert('Date and amount required'); return; }
