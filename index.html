@@ -241,7 +241,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">Build 2026-08-10</div>
+  <div id="version" class="noprint">Build 2026-08-12</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -622,25 +622,75 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 <!-- ========== AUDIT & GUIDE ========== -->
 <section class="view" id="view-audit">
   <div class="pagehead"><h1>Audit &amp; Guide</h1><div class="acts"></div></div>
-  <div class="card">
-    <div class="spread"><h2>Audit package</h2>
-      <div class="row"><button id="auditPrint" class="primary">Print / save PDF</button><button id="auditJson">Export full JSON</button></div>
-    </div>
-    <p class="faint">Generates a printable summary: yearly deductible interest, draw ledger with purposes and notes, holdings, ACB history, refund deployments. Attach your actual bank/brokerage statements behind it — <b>statements are the evidence; this is the index.</b></p>
-    <div id="auditBody"></div>
-  </div>
   <div class="card noprint">
-    <h2>Record-keeping guide <span class="faint" style="font-size:.72rem;text-transform:none">— reference only, not included in the printed package</span></h2>
-    <details><summary>Using this tool — first-time setup</summary>
-      <p>On <b>Properties</b>, start with the principal residence: principal, rate, compounding basis, start date. Compounding is required and has no default — semi-annual for most Canadian fixed mortgages, often monthly on variable. Your documents state it.</p>
-      <p>Then add your credit line on the same tab, with its rate basis and limit. If your room grows as you repay principal, pick a re-advanceable limit type. Then set your marginal tax rate on the Tax tab so deductible interest and refund estimates work.</p>
-      <p>Backfilling history? Enter events with their real dates in any order — the schedule and the ledger both replay from dates, not entry order.</p></details>
-    <details><summary>Using this tool — a typical month</summary>
-      <p>Record the prepayment on <b>Mortgage</b>, tagged with its source. Record the matching draw on <b>HELOC</b>, tagged Investment — that offers the purchase dialog so the buy lands in the ledger linked to the draw. If you paid HELOC interest in cash rather than capitalizing it, record that as a principal payment.</p>
-      <p>That's the loop: prepay, re-borrow, invest. The Dashboard conversion bar moves each time you complete one.</p></details>
-    <details><summary>Using this tool — at tax time</summary>
-      <p>The <b>Tax</b> tab totals deductible interest per year per line for Line 22100, and estimates the refund at your marginal rate. Reconcile it against your lender's statements before filing — the tool's figure is a daily-accrual estimate, and the statements govern.</p>
-      <p>Record where the refund went under Refund deployment; it can create the matching prepayment, HELOC payment, or purchase for you. Print the audit package from <b>Audit &amp; Guide</b> and keep your statements behind it.</p></details>
+    <h2>Getting started <span class="faint" style="font-size:.72rem;text-transform:none">— reference only, not included in the printed package</span></h2>
+    <p class="faint">If you're new to this, read the first three sections before entering anything. Figures below are illustrations, not projections for your situation.</p>
+
+    <details open><summary>What the Smith Manoeuvre actually is</summary>
+      <p>A method for turning the non-deductible mortgage on your home into deductible investment debt, without changing how much you owe overall.</p>
+      <p>It runs as a loop. You make a mortgage payment, which frees room on a re-advanceable credit line secured by the same home. You borrow that freed room and invest it in a non-registered account. Because that borrowed money is now earning income, its interest becomes deductible. You claim the deduction, and any refund goes back against the mortgage — which frees more room, and the loop repeats.</p>
+      <p>Total debt stays roughly flat. What changes is its <em>character</em>: each turn of the loop moves a slice from the non-deductible side to the deductible side. That conversion is the whole point, and it's what the bar at the top of the Dashboard is measuring.</p>
+    </details>
+
+    <details><summary>How it differs from ordinary leveraged investing</summary>
+      <p>They share the same tax rule — interest on money borrowed to earn income is generally deductible — but they are not the same decision.</p>
+      <p><b>Leveraged investing</b> means taking on <em>new</em> debt to buy investments. Your total borrowing goes up, and so does your risk.</p>
+      <p><b>The Smith Manoeuvre</b>, in its pure form, adds no new debt. You already owe the mortgage. You're re-borrowing money you've just repaid, so the balance sheet is flat and only the deductibility changes. This is the "debt swap" strategy in the Simulator.</p>
+      <p>The distinction matters because people conflate them and then argue past each other. "Borrowing to invest is risky" is true of leveraged investing; a pure debt swap is a different proposition, though not a risk-free one — your money is in the market either way, and the market can fall.</p>
+      <p>You can combine them: keep converting <em>and</em> draw additional room to invest. That's "Leveraged SM" in the Simulator, and it is genuinely more leverage with genuinely more risk. Worth being deliberate about which one you're doing.</p>
+    </details>
+
+    <details><summary>What you need before you start</summary>
+      <p><b>A re-advanceable mortgage.</b> As you repay principal, the credit limit on a linked line must increase automatically. Without that, there's nothing to re-borrow and no loop. Scotia STEP, Manulife One, National Bank All-in-One and similar products qualify; a plain mortgage with a separate fixed HELOC generally doesn't.</p>
+      <p><b>A dedicated credit line used for nothing else.</b> This is the single most important structural decision, and the easiest to get wrong. See "Mixed use" below.</p>
+      <p><b>A non-registered investment account.</b> Interest on money borrowed to invest inside a TFSA or RRSP is <em>not</em> deductible. Registered accounts are the wrong destination for this strategy.</p>
+      <p><b>Income that can absorb a bad year.</b> The interest is owed whether or not the investments perform. If a 30% drawdown while still carrying the debt would force you to sell, the strategy isn't a fit yet.</p>
+    </details>
+
+    <details><summary>The loop, mapped to this tool</summary>
+      <p><b>Set up once</b> — on <b>Properties</b>, enter your mortgage and add your credit line. On <b>Tax</b>, set your marginal rate.</p>
+      <p><b>Each time you convert</b> — record the prepayment on <b>Properties</b>. Record the matching draw on the same tab, tagged <b>Investment</b>; that offers the purchase dialog so the buy lands in the <b>Investments</b> ledger linked to the draw.</p>
+      <p><b>Each month</b> — if you pay the line's interest in cash rather than letting it capitalize, record it as <b>Interest charged</b> so your Line 22100 total comes from your statements rather than an estimate.</p>
+      <p><b>At tax time</b> — <b>Tax</b> totals deductible interest per year and estimates the refund. Record where the refund went; it can create the matching prepayment or purchase for you. Print the package from <b>Audit &amp; Guide</b>.</p>
+      <p class="faint">Worked example, illustration only: you prepay $1,000, which frees $1,000 of room. You draw it and buy $1,000 of a dividend ETF. At 5% the line accrues about $50 of deductible interest over a year; at a 40% marginal rate that's roughly $20 back. Small per turn — the effect comes from repeating it for years while the portfolio compounds.</p>
+    </details>
+
+    <details><summary>What the CRA actually cares about</summary>
+      <p>One question, asked about every dollar: <b>what was the borrowed money used for?</b></p>
+      <p>Deductibility follows the <em>use of funds</em>, not what secures the loan. A line registered against a rental property, used to buy stocks, produces investment interest. A line against your home, used for a vacation, produces nothing deductible. The security is irrelevant; the use is everything.</p>
+      <p>The test is <b>current use</b>, and it's ongoing rather than a one-time judgement. Sell the investments and spend the proceeds, and the interest stops being deductible from that point even though the loan hasn't changed.</p>
+      <p>What makes this defensible isn't a spreadsheet — it's account structure. A line used only for investing, feeding an account used only for those investments, is self-evidently traceable. A line that also paid for a car needs proration and argument.</p>
+      <p class="faint">The governing reference is CRA Folio S3-F6-C1, Interest Deductibility. Worth reading if you're doing this seriously.</p>
+    </details>
+
+    <details><summary>Mistakes that break deductibility</summary>
+      <p><b>Mixed use.</b> One personal purchase on the investment line contaminates it permanently. CRA requires repayments to be applied proportionally — you can't direct payments at the personal portion to clean it up. This tool models that proration, and you can watch it happen: adding a personal draw leaves <em>more</em> deductible balance standing after each payment, because the payment now splits three ways. Use a separate sub-account for anything personal.</p>
+      <p><b>Paying into the wrong account.</b> Repaying the investment line instead of the mortgage runs the loop backwards — it shrinks the deductible debt you built and leaves the non-deductible mortgage untouched.</p>
+      <p><b>Return of capital.</b> Many Canadian ETFs distribute ROC, which isn't income — it reduces your adjusted cost base and, strictly, the returned capital should go back against the loan to keep the full balance deductible. Record ROC on the <b>Investments</b> tab so your ACB stays right; a T3 can change this after year end.</p>
+      <p><b>Superficial losses.</b> Sell at a loss and rebuy the same security within 30 days and the loss is denied, added to the new ACB instead. The Investments tab flags likely cases in your own ledger, but it can't see accounts you haven't entered — including a spouse's.</p>
+      <p><b>Capitalizing interest carelessly.</b> Letting the line's interest accrue onto itself is a recognised technique, but it compounds your debt and draws more scrutiny. Some people deliberately pay it in cash instead. Either is defensible; drifting between them without records is not.</p>
+    </details>
+
+    <details><summary>When this is a bad idea</summary>
+      <p><b>The spread is too thin.</b> Your after-tax borrowing cost is roughly the line's rate × (1 − your marginal rate). If that's close to what you realistically expect from the portfolio, you're taking real risk for very little. The <b>Simulator</b>'s quick check gives you the break-even in two inputs — do that before anything else.</p>
+      <p><b>Unstable income.</b> The interest is due regardless. Commission income, contract work, or a business in a rough patch all argue for waiting.</p>
+      <p><b>You'd sell in a drawdown.</b> The strategy only works if you hold through bad years. Selling at the bottom while still owing the debt is the worst outcome available, and it's a behavioural question, not a mathematical one.</p>
+      <p><b>Retirement is close.</b> A shorter horizon means less time to compound past the borrowing cost, and less time to recover from a poor sequence of returns.</p>
+      <p><b>Higher-cost debt exists.</b> Credit card or unsecured balances at double-digit rates should be cleared first — paying those off is a guaranteed return that beats any expectation here.</p>
+      <p>Deciding not to do this is a legitimate outcome, and running the numbers honestly is worth more than the strategy itself.</p>
+    </details>
+
+    <details><summary>What your accountant will want</summary>
+      <p><b>Line 22100 — Carrying charges and interest expense.</b> Interest on money borrowed to earn investment income. The <b>Tax</b> tab totals this per year, per line.</p>
+      <p><b>T776 — Statement of Real Estate Rentals.</b> Only if you have a rental. Rental mortgage interest and rental expenses go here, against rental income. It's a separate stream from Line 22100 and the two are never combined — this tool keeps them apart deliberately.</p>
+      <p><b>Schedule 3 — Capital gains.</b> Any dispositions during the year, with proceeds and adjusted cost base. The Investments tab tracks ACB on the CRA average-cost method.</p>
+      <p><b>T5, T3, T5008 slips</b> from your brokerage, which your accountant reconciles against your own records. Where they disagree, the slips and statements win.</p>
+      <p>Bring the printed audit package with your statements attached behind it. The package is an index to your evidence, not a substitute for it.</p>
+    </details>
+  </div>
+
+  <div class="card noprint">
+    <h2>Record-keeping &amp; the CRA <span class="faint" style="font-size:.72rem;text-transform:none">— reference only, not included in the printed package</span></h2>
     <details open><summary>What the CRA actually wants</summary>
       <p>A clean, traceable flow: HELOC draw → dedicated chequing (optional but tidy) → non-registered investment account. Never mix personal spending into the SM credit line. Keep statements at least six years. One experienced filer's approach: once a year download 12 months of HELOC interest, SM chequing, and SM investment statements — that alone satisfies most reviews.</p></details>
     <details><summary>Capitalizing interest</summary>
@@ -652,7 +702,14 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <details><summary>Superficial loss rule</summary>
       <p>Selling at a loss and rebuying the identical security within 30 days (before or after), in <em>any</em> account you or your spouse control, denies the loss. The tool flags same-account cases only.</p></details>
   </div>
-</section>
+<div class="card">
+    <div class="spread"><h2>Audit package</h2>
+      <div class="row"><button id="auditPrint" class="primary">Print / save PDF</button><button id="auditJson">Export full JSON</button></div>
+    </div>
+    <p class="faint">Generates a printable summary: yearly deductible interest, draw ledger with purposes and notes, holdings, ACB history, refund deployments. Attach your actual bank/brokerage statements behind it — <b>statements are the evidence; this is the index.</b></p>
+    <div id="auditBody"></div>
+  </div>
+  </section>
 </main>
 </div>
 
@@ -832,7 +889,7 @@ let txView = 'sym';
 /* Date sorting is a DISPLAY concern only. Every engine (schedule, ACB, interest
    accrual) sorts events by true date internally regardless of what's shown —
    reversing a table must never reach the computation. */
-const sortDir = { prepay:'desc', heloc:'desc', ledger:'desc', refunds:'desc' };
+const sortDir = { prepay:'desc', heloc:'desc', ledger:'desc', refunds:'desc', propexp:'desc' };
 function toggleSort(key){ sortDir[key] = sortDir[key]==='asc' ? 'desc' : 'asc'; renderAll(); }
 window.toggleSort = toggleSort;
 function byDate(rows, key, get){
@@ -1520,9 +1577,14 @@ function dl(text,name){
 /* =================================================================
    HELOC — multiple lines, purpose-tagged draws, capitalization split
    ================================================================= */
+/* stream decides WHICH RETURN the interest lands on. Both are deductible; they
+   are never added together, because they are claimed on different forms:
+     '22100' — investment carrying charges, Line 22100
+     'T776'  — rental expenses, against rental income                        */
 const PURPOSES = {
-  invest:      {label:'Investment', cls:'gold', deductible:true},
-  capint:      {label:'Capitalized interest', cls:'gold', deductible:true},
+  invest:      {label:'Investment', cls:'gold', deductible:true,  stream:'22100'},
+  capint:      {label:'Capitalized interest', cls:'gold', deductible:true, stream:'22100'},
+  rental:      {label:'Rental expense (T776)', cls:'blue', deductible:true, stream:'T776'},
   personal:    {label:'Personal (non-deductible)', cls:'red', deductible:false},
   other:       {label:'Other / mixed', cls:'red', deductible:false},
 };
@@ -2100,7 +2162,7 @@ $('edSave').onclick = ()=>{
     if(r){ r.date=date; r.amount=amt; r.note=note; }
   } else if(t.kind==='propRow'){
     const r = S.properties[t.pi] && S.properties[t.pi][t.list][t.idx];
-    if(r){ r.date=date; r.amount=amt; r.note=note; if(t.list==='expenses' && sel) r.kind=sel; }
+    if(r){ r.date=date; r.amount=amt; r.note=note; if(t.list==='expenses' && sel){ r.cat=sel; delete r.kind; } }
   } else if(t.kind==='helocPay'){
     const h = S.helocs[t.hi], pmt = h && h.payments[t.i];
     if(pmt){ pmt.date=date; pmt.amount=amt; pmt.note=note; }
@@ -2441,7 +2503,7 @@ function normalizeDate(s){
 // Estimate interest accrued in a calendar year on deductible balances,
 // walking each line's dated events at its stated rate (daily simple accrual).
 function deductibleInterestForYear(year){
-  let total = 0; const perLine = [];
+  let total = 0, total22100 = 0, totalT776 = 0; const perLine = [];
   let recordedTotal = 0;
   const hasRecorded = S.helocs.some(h=>(h.interestNotes||[]).some(n=>+n.date.slice(0,4)===year));
   const y0 = new Date(year+'-01-01T00:00:00').getTime();
@@ -2453,33 +2515,47 @@ function deductibleInterestForYear(year){
       perLine.push({name:h.name, interest:null, note:'no rate set'}); continue;
     }
     const evts = [
-      ...h.draws.map(d=>({t:new Date(d.date).getTime(), amt: PURPOSES[d.purpose]?.deductible ? d.amount : 0, ded:PURPOSES[d.purpose]?.deductible, raw:d.amount})),
+      ...h.draws.map(d=>({t:new Date(d.date).getTime(),
+        amt: PURPOSES[d.purpose]?.deductible ? d.amount : 0,
+        stream: PURPOSES[d.purpose]?.stream || null, raw:d.amount})),
       ...h.payments.map(p=>({t:new Date(p.date).getTime(), amt:-p.amount, pay:true, raw:-p.amount}))
     ].sort((a,b)=>a.t-b.t);
-    let dedBal=0, totBal=0, lastT=y0, interest=0;
+    // Two deductible balances on the same line: investment borrowing and rental
+    // borrowing accrue separately so each reports on its own form.
+    let balInv=0, balRent=0, totBal=0, lastT=y0, intInv=0, intRent=0;
     // Accrue from lastT→to, splitting at any rate-change boundary so each
     // sub-span uses the rate in effect during it.
     const accrue = to => {
       let from = Math.max(lastT, y0), end = Math.min(to, y1);
-      if(end<=from || dedBal<=0) return;
+      if(end<=from || (balInv<=0 && balRent<=0)) return;
       const cuts = [from, ...rateBoundaries(h, from, end), end];
       for(let i=0;i<cuts.length-1;i++){
         const a=cuts[i], b=cuts[i+1];
         const rate = helocRateAt(h, a);
-        if(rate!=null) interest += dedBal * (rate/100) * (b-a)/(365*86400000);
+        if(rate==null) continue;
+        const f = (rate/100) * (b-a)/(365*86400000);
+        intInv  += balInv  * f;
+        intRent += balRent * f;
       }
     };
     for(const e of evts){
       if(e.t>=y1) break;
       accrue(e.t); lastT=Math.max(e.t,lastT);
       if(e.pay){
-        const share = totBal>0 ? dedBal/totBal : 0;
-        dedBal = Math.max(dedBal + e.amt*share, 0); totBal = Math.max(totBal + e.amt, 0);
+        // CRA requires proportional repayment — you can't target one purpose.
+        const sInv  = totBal>0 ? balInv/totBal  : 0;
+        const sRent = totBal>0 ? balRent/totBal : 0;
+        balInv  = Math.max(balInv  + e.amt*sInv,  0);
+        balRent = Math.max(balRent + e.amt*sRent, 0);
+        totBal  = Math.max(totBal + e.amt, 0);
       } else {
-        dedBal += e.amt; totBal += e.raw;
+        if(e.stream==='T776') balRent += e.amt; else balInv += e.amt;
+        totBal += e.raw;
       }
     }
     accrue(y1);
+    const interest = intInv + intRent;
+    const dedBal = balInv + balRent;
     // Interest actually charged, from statements, if the user recorded it.
     // Prorated by this line's deductible share so a mixed-use line isn't
     // reported as fully deductible.
@@ -2488,11 +2564,12 @@ function deductibleInterestForYear(year){
       .reduce((a,n)=>a+n.amount,0);
     const dedShare = totBal>0 ? Math.min(dedBal/totBal,1) : (recRaw>0?1:0);
     const recorded = recRaw>0 ? recRaw*dedShare : null;
-    perLine.push({name:h.name, interest, recorded, recRaw, dedShare});
-    total += interest;
+    perLine.push({name:h.name, interest, int22100:intInv, intT776:intRent,
+                  recorded, recRaw, dedShare, propertyId:h.propertyId});
+    total += interest; total22100 += intInv; totalT776 += intRent;
     recordedTotal += (recorded||0);
   }
-  return {total, perLine, recordedTotal, hasRecorded};
+  return {total, total22100, totalT776, perLine, recordedTotal, hasRecorded};
 }
 $('taxCalc').onclick = ()=>{
   if($('taxMTR').value===''){
@@ -2501,7 +2578,7 @@ $('taxCalc').onclick = ()=>{
   }
   S.taxMTR = +$('taxMTR').value;
   const year = +$('taxYear').value || new Date().getFullYear();
-  let interest, srcNote, recorded=null, est=null;
+  let interest, srcNote, recorded=null, est=null, t776=0;
   if(S.mode==='light'){
     const row = S.lightYears.find(r=>r.year===year);
     interest = row ? row.interest : 0;
@@ -2512,20 +2589,21 @@ $('taxCalc').onclick = ()=>{
     // so when it exists it becomes the headline figure and the estimate is shown
     // beside it as a cross-check.
     if(r.hasRecorded && r.recordedTotal>0){
-      interest = r.recordedTotal; recorded = r; 
+      interest = r.recordedTotal; recorded = r;
       srcNote = 'from the interest you recorded off your statements — the figure to report';
     } else {
-      interest = r.total;
+      interest = r.total22100;
       srcNote = 'estimated from ledger (daily accrual at each line\'s stated rate) — reconcile against actual bank statements before filing';
     }
-    est = r.total;
+    est = r.total22100; t776 = r.totalT776;
   }
-  const refund = S.taxMTR!=null ? interest * S.taxMTR/100 : null;
+  const refund = S.taxMTR!=null ? (interest + t776) * S.taxMTR/100 : null;
   const drift = (recorded && est!=null) ? interest-est : null;
   $('taxStats').innerHTML = `
-    <div class="stat"><div class="v gold">${fmt$2(interest)}</div><div class="l">Deductible interest ${year}</div></div>
+    <div class="stat"><div class="v gold">${fmt$2(interest)}</div><div class="l">Line 22100 — investment interest ${year}</div></div>
+    ${t776>0?`<div class="stat"><div class="v blue">${fmt$2(t776)}</div><div class="l">T776 — rental interest ${year}</div></div>`:''}
     <div class="stat"><div class="v">${S.taxMTR!=null?S.taxMTR+'%':'—'}</div><div class="l">Marginal rate</div></div>
-    <div class="stat"><div class="v green">${refund!=null?fmt$2(refund):'—'}</div><div class="l">Est. refund (Line 22100)</div></div>
+    <div class="stat"><div class="v green">${refund!=null?fmt$2(refund):'—'}</div><div class="l">Est. refund${t776>0?' (both deductions)':' (Line 22100)'}</div></div>
     ${recorded?`<div class="stat"><div class="v faint">${fmt$2(est)}</div><div class="l">Tool's estimate</div></div>
     <div class="stat"><div class="v ${Math.abs(drift)>Math.max(est*0.05,25)?'red':'faint'}">${(drift>=0?'+':'')+fmt$2(drift)}</div><div class="l">Recorded vs. estimate</div></div>`:''}
     <div class="stat" style="grid-column:span 2"><div class="l" style="text-transform:none;font-size:.78rem">${srcNote}</div></div>`;
@@ -2629,7 +2707,7 @@ $('t1213Btn').onclick = ()=>{
   const year = (+$('taxYear').value || new Date().getFullYear());
   let interest;
   if(S.mode==='light'){ interest = S.lightYears.find(r=>r.year===year-1)?.interest || 0; }
-  else { interest = deductibleInterestForYear(year-1).total; }
+  else { interest = deductibleInterestForYear(year-1).total22100; }
   const projected = interest; // conservative: project this year = last year
   const out = `T1213 DRAFT WORKSHEET — Request to Reduce Tax Deductions at Source
 Tax year: ${year}
@@ -2668,12 +2746,16 @@ function buildAudit(){
   S.helocs.forEach(h=>h.draws.forEach(d=>years.add(+d.date.slice(0,4))));
   S.lightYears.forEach(r=>years.add(r.year));
   const yr = [...years].sort();
-  let html = `<h3>Yearly deductible interest</h3><table><tr><th>Year</th><th class="num">Deductible interest</th><th>Source</th></tr>`;
+  let html = `<h3>Yearly deductible interest</h3>
+    <p class="faint">Line 22100 is investment carrying charges. T776 is rental interest, claimed against rental income on a different form — the two are never combined.</p>
+    <table><tr><th>Year</th><th class="num">Line 22100</th><th class="num">T776 rental</th><th>Source</th></tr>`;
   if(S.mode==='light'){
-    html += S.lightYears.map(r=>`<tr><td>${r.year}</td><td class="num">${fmt$2(r.interest)}</td><td class="faint">annual summary (bank statements)</td></tr>`).join('');
+    html += S.lightYears.map(r=>`<tr><td>${r.year}</td><td class="num">${fmt$2(r.interest)}</td><td class="num faint">—</td><td class="faint">annual summary (bank statements)</td></tr>`).join('');
   } else {
     html += yr.map(y=>{ const r=deductibleInterestForYear(y);
-      return `<tr><td>${y}</td><td class="num">${fmt$2(r.total)}</td><td class="faint">ledger estimate — reconcile to statements</td></tr>`;}).join('');
+      return `<tr><td>${y}</td><td class="num">${fmt$2(r.total22100)}</td>
+        <td class="num">${r.totalT776>0?fmt$2(r.totalT776):'<span class="faint">—</span>'}</td>
+        <td class="faint">ledger estimate — reconcile to statements</td></tr>`;}).join('');
   }
   html += '</table>';
   html += `<h3 style="margin-top:1rem">Credit line draw ledger</h3>`;
@@ -3043,7 +3125,7 @@ function renderDash(){
   const yearNow = new Date().getFullYear();
   const intYtd = S.mode==='light'
     ? (S.lightYears.find(r=>r.year===yearNow)?.interest ?? null)
-    : deductibleInterestForYear(yearNow).total;
+    : deductibleInterestForYear(yearNow).total22100;
   const refundEst = (intYtd!=null && S.taxMTR!=null) ? intYtd*S.taxMTR/100 : null;
   $('dashStats').innerHTML = `
     <div class="stat"><div class="v gold">${fmt$(dd)}</div><div class="l">Deductible debt</div></div>
@@ -3195,7 +3277,56 @@ function propSchedule(m){
   return {byYear, rows, pay, balNow: (()=>{ const t=today(); let b=m.principal;
     for(const r of rows){ if(r.date>t) break; b=r.bal; } return b; })()};
 }
+/* Expense categories. The tool derives tax treatment from the category, so the
+   only judgement left with the user is current vs capital on repairs — which
+   CRA decides on facts the tool can't see. */
+const EXPCATS = {
+  tax:      {label:'Property tax',      recurring:true,  deductible:true,  dammable:true},
+  insurance:{label:'Insurance',         recurring:true,  deductible:true,  dammable:true},
+  utilities:{label:'Utilities',         recurring:true,  deductible:true,  dammable:true},
+  condo:    {label:'Condo / strata fees',recurring:true, deductible:true,  dammable:true},
+  mgmt:     {label:'Management fees',   recurring:true,  deductible:true,  dammable:true},
+  otherrec: {label:'Other recurring',   recurring:true,  deductible:true,  dammable:true},
+  repair:   {label:'Repairs & maintenance', recurring:false, deductible:true,  dammable:true},
+  capital:  {label:'Improvement (capital)', recurring:false, deductible:false, dammable:false},
+  legal:    {label:'Legal / professional',  recurring:false, deductible:true,  dammable:true},
+  otherone: {label:'Other one-off',      recurring:false, deductible:true,  dammable:true},
+};
+const catOf = e => EXPCATS[e.cat] || (e.kind==='capital' ? EXPCATS.capital : EXPCATS.repair);
+const isRecurring = e => !!catOf(e).recurring;
+
+/* Cash flow for a property: what actually leaves the account each period vs
+   what is deductible vs what could be paid from a credit line. */
+function propCashflow(pr, year){
+  const share = (pr.share==null?100:pr.share)/100;
+  const inY = r => +String(r.date).slice(0,4) === year;
+  const sch = propSchedule(pr.mortgage);
+  const mInt  = sch && sch.byYear[year] ? sch.byYear[year].int  : 0;
+  const mPrin = sch && sch.byYear[year] ? sch.byYear[year].prin : 0;
+  const income = pr.income.filter(inY).reduce((a,r)=>a+r.amount,0);
+  const exp = pr.expenses.filter(inY);
+  const rec = exp.filter(isRecurring), one = exp.filter(e=>!isRecurring(e));
+  const sum = (rows, f) => rows.filter(f).reduce((a,r)=>a+r.amount,0);
+  const recCash = sum(rec, ()=>true), oneCash = sum(one, ()=>true);
+  const recDed  = sum(rec, e=>catOf(e).deductible), oneDed = sum(one, e=>catOf(e).deductible);
+  const capital = sum(one, e=>!catOf(e).deductible);
+  const dammable = sum(exp, e=>catOf(e).dammable) + mInt;
+  const cashOut = recCash + oneCash + mInt + mPrin;
+  const deductible = recDed + oneDed + mInt;
+  return {share, income:income*share,
+    recCash:recCash*share, oneCash:oneCash*share, capital:capital*share,
+    mInt:mInt*share, mPrin:mPrin*share,
+    cashOut:cashOut*share, deductible:deductible*share, dammable:dammable*share,
+    surplus:(income - cashOut)*share,
+    recSurplus:(income - recCash - mInt - mPrin)*share};
+}
+function migratePropExpenses(pr){
+  (pr.expenses||[]).forEach(e=>{
+    if(!e.cat) e.cat = (e.kind==='capital') ? 'capital' : 'repair';
+  });
+}
 function propYearRows(pr){
+  migratePropExpenses(pr);
   const years = new Set();
   const sch = propSchedule(pr.mortgage);
   if(sch) Object.keys(sch.byYear).forEach(y=>years.add(y));
@@ -3204,8 +3335,8 @@ function propYearRows(pr){
   const share = (pr.share==null?100:pr.share)/100;
   return [...years].sort().map(y=>{
     const inc = pr.income.filter(r=>r.date.slice(0,4)===y).reduce((a,r)=>a+r.amount,0);
-    const cur = pr.expenses.filter(r=>r.date.slice(0,4)===y && r.kind!=='capital').reduce((a,r)=>a+r.amount,0);
-    const cap = pr.expenses.filter(r=>r.date.slice(0,4)===y && r.kind==='capital').reduce((a,r)=>a+r.amount,0);
+    const cur = pr.expenses.filter(r=>r.date.slice(0,4)===y && catOf(r).deductible).reduce((a,r)=>a+r.amount,0);
+    const cap = pr.expenses.filter(r=>r.date.slice(0,4)===y && !catOf(r).deductible).reduce((a,r)=>a+r.amount,0);
     const mi  = sch && sch.byYear[y] ? sch.byYear[y].int : 0;
     return {y, inc:inc*share, cur:cur*share, cap:cap*share, mi:mi*share,
             net:(inc-cur-mi)*share};
@@ -3231,7 +3362,8 @@ function renderProperties(){
     const thisYear = String(new Date().getFullYear());
     const cy = yrs.find(r=>r.y===thisYear);
     const inc = [...pr.income].sort((a,b)=>a.date.localeCompare(b.date));
-    const exp = [...pr.expenses].sort((a,b)=>a.date.localeCompare(b.date));
+    migratePropExpenses(pr);
+    const exp = byDate(pr.expenses,'propexp');
     return `<div class="card">
       <div class="spread"><h2>${esc(pr.name)}</h2>
         <div class="row"><button class="small" onclick="renameProp(${pi})">Rename</button>
@@ -3290,27 +3422,61 @@ function renderProperties(){
           <td class="actcell"><button class="small" onclick="editPropRow(${pi},'income',${idx})">Edit</button><button class="small danger" onclick="delPropRow(${pi},'income',${idx})" aria-label="Delete income entry" title="Delete income entry">×</button></td></tr>`;}).join('')
         :'<tr><td class="empty">No income recorded.</td></tr>'}</table></div>
 
-      <h3 style="margin-top:.9rem">Expenses</h3>
+      <h3 style="margin-top:.9rem">Recurring costs</h3>
+      <p class="faint">Predictable monthly or annual costs. Always current expenses, always deductible, and all of them could be paid from a credit line if you're cash damming. Your mortgage payment is pulled from the schedule — don't enter it here.</p>
       <div class="grid g3">
         <div class="field"><label>Date</label><input type="date" id="pe-date-${pi}" value="${today()}"></div>
         <div class="field"><label>Amount $</label><input type="number" step="0.01" id="pe-amt-${pi}"></div>
-        <div class="field"><label>Type</label>
-          <select id="pe-kind-${pi}">
-            <option value="current">Current — repair, upkeep, operating</option>
-            <option value="capital">Capital — improvement / betterment</option>
-          </select></div>
+        <div class="field"><label>Category</label>
+          <select id="pe-cat-${pi}">${Object.entries(EXPCATS).filter(([,v])=>v.recurring).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select></div>
+        <div class="field"><label>Repeat</label>
+          <select id="pe-rep-${pi}"><option value="1">Just this one</option><option value="12">Monthly for 12 months</option><option value="4">Quarterly for a year</option></select></div>
+        <div class="field" style="grid-column:span 2"><label>Note</label><input type="text" id="pe-note-${pi}" placeholder="optional"></div>
       </div>
-      <div class="field"><label>Note</label><input type="text" id="pe-note-${pi}" placeholder="what was it for?"></div>
-      <button onclick="addPropExpense(${pi})">Add expense</button>
-      <p class="faint" style="margin-top:.4rem">Roughly: restoring something to its original condition is current; making it better than it was, or extending its life, is capital. Capital items aren't claimed in the year you pay them — they go to the building's cost base. Ask your accountant when it's borderline.</p>
-      <div class="scrollx" style="margin-top:.5rem"><table>${exp.length?
-        '<tr><th>Date</th><th class="num">Amount</th><th>Type</th><th>Note</th><th class="actcell"></th></tr>'+
-        exp.map(r=>{const idx=pr.expenses.indexOf(r);
+      <button onclick="addPropExpense(${pi},true)">Add recurring cost</button>
+      <div class="scrollx" style="margin-top:.5rem"><table>${(()=>{const rows=exp.filter(isRecurring);return rows.length?
+        `<tr>${sortHead('propexp','Date')}<th class="num">Amount</th><th>Category</th><th>Note</th><th class="actcell"></th></tr>`+
+        rows.map(r=>{const idx=pr.expenses.indexOf(r);
           return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
-          <td><span class="tag ${r.kind==='capital'?'blue':'gold'}">${r.kind==='capital'?'Capital':'Current'}</span></td>
+          <td><span class="tag gold">${esc(catOf(r).label)}</span></td>
           <td class="faint">${esc(r.note)}</td>
-          <td class="actcell"><button class="small" onclick="editPropRow(${pi},'expenses',${idx})">Edit</button><button class="small danger" onclick="delPropRow(${pi},'expenses',${idx})" aria-label="Delete expense entry" title="Delete expense entry">×</button></td></tr>`;}).join('')
-        :'<tr><td class="empty">No expenses recorded.</td></tr>'}</table></div>
+          <td class="actcell"><button class="small" onclick="editPropRow(${pi},'expenses',${idx})">Edit</button><button class="small danger" onclick="delPropRow(${pi},'expenses',${idx})" aria-label="Delete expense" title="Delete expense">×</button></td></tr>`;}).join('')
+        :'<tr><td class="empty">No recurring costs recorded.</td></tr>';})()}</table></div>
+
+      <h3 style="margin-top:.9rem">One-off costs</h3>
+      <p class="faint">Repairs, improvements, professional fees. The one call the tool can't make for you: a <b>repair</b> restores something to its previous condition and is claimed this year; an <b>improvement</b> makes it better or longer-lived and goes to the building's cost base instead, so it's excluded from this year's deduction. Ask your accountant when it's borderline.</p>
+      <div class="grid g3">
+        <div class="field"><label>Date</label><input type="date" id="po-date-${pi}" value="${today()}"></div>
+        <div class="field"><label>Amount $</label><input type="number" step="0.01" id="po-amt-${pi}"></div>
+        <div class="field"><label>Category</label>
+          <select id="po-cat-${pi}">${Object.entries(EXPCATS).filter(([,v])=>!v.recurring).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select></div>
+        <div class="field" style="grid-column:span 2"><label>Note</label><input type="text" id="po-note-${pi}" placeholder="what was it for?"></div>
+      </div>
+      <button onclick="addPropExpense(${pi},false)">Add one-off cost</button>
+      <div class="scrollx" style="margin-top:.5rem"><table>${(()=>{const rows=exp.filter(e=>!isRecurring(e));return rows.length?
+        `<tr><th>Date</th><th class="num">Amount</th><th>Category</th><th>Note</th><th class="actcell"></th></tr>`+
+        rows.map(r=>{const idx=pr.expenses.indexOf(r);const c=catOf(r);
+          return `<tr><td>${r.date}</td><td class="num">${fmt$2(r.amount)}</td>
+          <td><span class="tag ${c.deductible?'gold':'blue'}">${esc(c.label)}</span></td>
+          <td class="faint">${esc(r.note)}</td>
+          <td class="actcell"><button class="small" onclick="editPropRow(${pi},'expenses',${idx})">Edit</button><button class="small danger" onclick="delPropRow(${pi},'expenses',${idx})" aria-label="Delete expense" title="Delete expense">×</button></td></tr>`;}).join('')
+        :'<tr><td class="empty">No one-off costs recorded.</td></tr>';})()}</table></div>
+
+      <h3 style="margin-top:.9rem">Cash flow — ${thisYear}</h3>
+      ${(()=>{const c=propCashflow(pr, +thisYear);
+        return `<div class="statgrid" style="margin-bottom:.5rem">
+          <div class="stat"><div class="v green">${fmt$(c.income)}</div><div class="l">Rent received</div></div>
+          <div class="stat"><div class="v">${fmt$(c.cashOut)}</div><div class="l">Cash out (incl. principal)</div></div>
+          <div class="stat"><div class="v ${c.surplus<0?'red':'green'}">${fmt$(c.surplus)}</div><div class="l">Surplus to sweep</div></div>
+          <div class="stat"><div class="v gold">${fmt$(c.deductible)}</div><div class="l">Deductible (T776)</div></div>
+          <div class="stat"><div class="v blue">${fmt$(c.dammable)}</div><div class="l">Could be dammed</div></div>
+        </div>
+        <div class="callout">
+          <b>How those differ.</b> Cash out ${fmt$(c.cashOut)} − mortgage principal ${fmt$(c.mPrin)}${c.capital>0?` − capital improvements ${fmt$(c.capital)}`:''} = deductible ${fmt$(c.deductible)}.
+          Principal is real money leaving the account but a capital repayment, not an expense${c.capital>0?'; improvements go to the building\'s cost base rather than this year\'s deduction':''}.
+          <br><b>Surplus</b> is what's left after everything, including principal — the amount you'd move against your non-deductible mortgage.
+          ${c.dammable>0?`<br><b>Could be dammed</b> is the operating costs plus mortgage interest — pay those from a credit line instead of cash and the same surplus grows, with that line's interest deductible on T776. Record those draws on the credit line with purpose <b>Rental expense</b>.`:''}
+        </div>`;})()}
 
       <h3 style="margin-top:.9rem">By year</h3>
       <div class="scrollx"><table>${yrs.length?
@@ -3340,10 +3506,21 @@ window.addPropIncome = pi => {
   if(!d||!a){ alert('Date and amount required'); return; }
   S.properties[pi].income.push({id:uid(), date:d, amount:a, note:$(`pi-note-${pi}`).value}); touch();
 };
-window.addPropExpense = pi => {
-  const d=$(`pe-date-${pi}`).value, a=+$(`pe-amt-${pi}`).value;
+window.addPropExpense = (pi, recurring) => {
+  const pfx = recurring ? 'pe' : 'po';
+  const d=$(`${pfx}-date-${pi}`).value, a=+$(`${pfx}-amt-${pi}`).value;
   if(!d||!a){ alert('Date and amount required'); return; }
-  S.properties[pi].expenses.push({id:uid(), date:d, amount:a, kind:$(`pe-kind-${pi}`).value, note:$(`pe-note-${pi}`).value}); touch();
+  const cat=$(`${pfx}-cat-${pi}`).value, note=$(`${pfx}-note-${pi}`).value;
+  // The repeat helper creates real dated entries, not a projection — each one
+  // can be corrected later if that month actually differed.
+  const reps = recurring ? (+$(`pe-rep-${pi}`).value || 1) : 1;
+  const step = reps===12 ? 1 : reps===4 ? 3 : 0;
+  for(let k=0;k<reps;k++){
+    const dt = new Date(d+'T00:00:00'); if(step) dt.setMonth(dt.getMonth()+k*step);
+    S.properties[pi].expenses.push({id:uid(), date:dt.toISOString().slice(0,10),
+      amount:a, cat, note});
+  }
+  touch();
 };
 window.delPropRow = (pi,list,idx)=>{ S.properties[pi][list].splice(idx,1); touch(); };
 window.editPropRow = (pi,list,idx)=>{
@@ -3351,9 +3528,8 @@ window.editPropRow = (pi,list,idx)=>{
   openEdit({ target:{kind:'propRow', pi, list, idx},
     title: list==='income'?'Edit income entry':'Edit expense entry',
     date:r.date, amount:r.amount, note:r.note,
-    selLabel:'Type', selected:r.kind,
-    options: list==='expenses' ? [{value:'current',label:'Current — repair, upkeep, operating'},
-                                  {value:'capital',label:'Capital — improvement / betterment'}] : null });
+    selLabel:'Category', selected:r.cat,
+    options: list==='expenses' ? Object.entries(EXPCATS).map(([k,v])=>({value:k,label:v.label})) : null });
 };
 
 function renderAll(){

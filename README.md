@@ -32,6 +32,9 @@ You can also just download `index.html` and run it offline. It works exactly the
 - Credit lines are linked to the property that secures them
 
 **Rental / second home**
+- Recurring costs and one-off costs tracked separately, with categories that derive their own tax treatment
+- Cash-flow summary: rent in, cash out, surplus to sweep, and what could be paid from a credit line
+- Cash damming: draws tagged as rental expenses accrue interest on a separate T776 stream, never merged with Line 22100
 - Track a mortgage on another property with its own amortization and interest per year
 - Record income and expenses line by line, split into current and capital
 - Ownership share applied throughout, for jointly-owned property
@@ -98,6 +101,7 @@ Not sure the strategy suits you? The Simulator answers that before you commit to
 - Debt conversion percentage, non-deductible → deductible
 - Light mode (annual statement totals) or Full mode (per-transaction), with the net-position chart plotted in either
 - Printable audit package, Schedule 3 disposition support, full JSON export
+- Beginner's guide: what the strategy is, how it differs from leveraged investing, the CRA's tracing test, common mistakes, and when not to do it
 - Record-keeping guide covering capitalized interest, ROC, mixed use, and superficial loss
 - Light and dark themes
 
@@ -126,6 +130,10 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Dates are build dates; the live site always serves the newest.
+
+**2026-08-12** — Beginner's guide added to Audit & Guide, ahead of the record-keeping material and the printable package. Covers what the strategy is, how it differs from ordinary leveraged investing, what you need before starting, the monthly loop mapped to each tab, what the CRA actually tests, the mistakes that break deductibility, what your accountant will want, and when not to do this at all. Illustrative figures throughout, labelled as such.
+
+**2026-08-11** — Cash damming support. A credit line draw can now be tagged **Rental expense**, and its interest is tracked as a second stream reported on T776 rather than Line 22100 — the two are shown side by side and never combined, including in the audit package. Payments prorate across both, as CRA requires. Property costs are split into recurring and one-off sections: recurring items take a category and an optional repeat, and the only tax judgement left with you is repair versus improvement on one-off items. A cash-flow summary shows rent in, everything out, and the surplus to sweep against your non-deductible mortgage, with the arithmetic between cash out, deductible, and dammable spelled out on screen.
 
 **2026-08-10** — Restructured around properties. Mortgage and HELOC are no longer separate tabs: every property — your principal residence and any rentals — now holds its own mortgage, its own credit lines, and its own records, selected from one Properties tab. Credit lines record which property secures them, so growing-room limits finally use the right mortgage instead of being disabled off the principal residence. Existing files upgrade automatically on load, and the tool refuses to open files saved by a newer version rather than silently dropping data.
 
