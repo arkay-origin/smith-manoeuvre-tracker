@@ -241,7 +241,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">Build 2026-08-12</div>
+  <div id="version" class="noprint">Build 2026-08-13</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -257,12 +257,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 <!-- ========== DASHBOARD ========== -->
 <section class="view active" id="view-dash">
   <div class="pagehead"><h1>Dashboard</h1>
-    <div class="acts"><div class="modewrap" title="Light mode: annual summaries only. Full mode: transaction-level tracking.">
-      <button id="modeLight">Light</button><button id="modeFull" class="on">Full</button>
-    </div></div>
+    <div class="acts"></div>
   </div>
-  <p class="faint">Light mode = enter annual totals from your bank statements (the CRA cares about statements, not spreadsheets). Full mode = per-transaction ledger.</p>
-
   <div id="convledger" class="card">
     <div class="spread">
       <div><h2 style="margin-bottom:.1rem">Debt conversion</h2>
@@ -286,38 +282,32 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   </div>
 
   <div class="card noprint" id="startHere" style="display:none">
-    <h2>Start here</h2>
-    <p class="faint">Four steps, in this order. Each one feeds the next.</p>
-    <ol class="steps">
-      <li><b>Set up your mortgage</b> — principal, rate, compounding basis, start date.
-        <button class="small" data-goto="property">Go to Properties</button></li>
-      <li><b>Add your HELOC line</b> — rate basis and credit limit. Use a re-advanceable limit type if your room grows as you repay principal.
-        <button class="small" data-goto="property">Go to Properties</button></li>
-      <li><b>Record draws as you make them</b>, tagged by purpose. An investment draw offers to log the purchase in the same step.
-        <button class="small" data-goto="property">Go to Properties</button></li>
-      <li><b>Set your marginal tax rate</b> so deductible interest and refund estimates work.
-        <button class="small" data-goto="tax">Go to Tax</button></li>
-    </ol>
-    <p class="faint">Not sure the strategy is worth it for you? The <b>Simulator</b> answers that before you commit to any of this. Full walkthrough lives under <b>Audit &amp; Guide</b>.</p>
+    <h2>Quick start</h2>
+    <p class="faint">Ten figures you can read off a mortgage statement and a HELOC statement. You'll get a straight answer on whether the strategy is worth it for you — then, if it is, the tool can set itself up from the same numbers.</p>
+    <div class="grid g3">
+      <div class="field"><label>Mortgage payment $</label><input type="number" id="qsPay" step="0.01" placeholder="principal + interest only"></div>
+      <div class="field"><label>Payment frequency</label>
+        <select id="qsFreq">
+          <option value="12">Monthly</option><option value="26">Bi-weekly</option>
+          <option value="26a">Accelerated bi-weekly</option><option value="52">Weekly</option>
+          <option value="52a">Accelerated weekly</option>
+        </select></div>
+      <div class="field"><label>Mortgage rate %</label><input type="number" id="qsMRate" step="0.001" placeholder="e.g. 4.19"></div>
+      <div class="field"><label>Principal remaining $</label><input type="number" id="qsPrin" step="0.01"></div>
+      <div class="field"><label>Amortization left (years)</label><input type="number" id="qsAmort" step="0.1"></div>
+      <div class="field"><label>HELOC balance $</label><input type="number" id="qsHBal" step="0.01" placeholder="0 if not started"></div>
+      <div class="field"><label>HELOC rate %</label><input type="number" id="qsHRate" step="0.01"></div>
+      <div class="field"><label>Already invested $</label><input type="number" id="qsInv" step="0.01" placeholder="0 if not started"></div>
+      <div class="field"><label>Expected return %/yr</label><input type="number" id="qsRet" step="0.1" placeholder="be honest, not hopeful"></div>
+      <div class="field"><label>Marginal tax rate % <span class="red">*</span></label><input type="number" id="qsMTR" step="0.1" placeholder="fed + prov combined"></div>
+    </div>
+    <button class="primary" id="qsRun">Show me the numbers</button>
+    <div id="qsOut" style="margin-top:.9rem"></div>
   </div>
 
   <div class="statgrid" id="dashStats"></div>
 
-  <div class="card" id="lightPanel" style="display:none">
-    <h2>Light mode — annual summary</h2>
-    <p class="faint">Once a year, download 12 months of statements (HELOC interest, SM chequing, SM investment account) and enter the totals. Keep the statements — they're your real audit trail.</p>
-    <div class="grid g3">
-      <div class="field"><label>Tax year</label><input type="number" id="lyYear"></div>
-      <div class="field"><label>Deductible interest paid ($)</label><input type="number" id="lyInterest" step="0.01"></div>
-      <div class="field"><label>HELOC balance (investment) $</label><input type="number" id="lyHeloc" step="0.01"></div>
-      <div class="field"><label>Mortgage balance $</label><input type="number" id="lyMort" step="0.01"></div>
-      <div class="field"><label>Portfolio value $</label><input type="number" id="lyPort" step="0.01"></div>
-      <div class="field"><label>Dividends received $</label><input type="number" id="lyDiv" step="0.01"></div>
-    </div>
-    <div class="field"><label>Note</label><input type="text" id="lyNote" placeholder="e.g. all statements saved to /2026 folder"></div>
-    <button class="primary" id="lyAdd">Add year</button>
-    <div class="scrollx" style="margin-top:.8rem"><table id="lyTable"></table></div>
-  </div>
+  
 
   <div class="card"><h2>Net position</h2><canvas id="dashChart" class="chart" height="300" role="img" aria-label="Portfolio value versus total debt over time"></canvas>
   <p class="faint" style="margin-top:.4rem" id="dashChartNote"></p></div>
@@ -556,7 +546,21 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <p class="faint">Form T1213 asks the CRA to let your employer withhold less tax because of known deductions (like SM interest). Output below is a <b>draft worksheet only</b> — transcribe onto the official CRA form and have a professional sanity-check it.</p>
     <pre id="t1213Out" style="white-space:pre-wrap;font-family:var(--mono);font-size:.82rem;background:var(--input-bg);border:1px solid var(--line);border-radius:8px;padding:.8rem;display:none"></pre>
   </div>
-</section>
+<div class="card" id="lightPanel" >
+    <h2>Annual summaries from statements</h2>
+    <p class="faint">Optional. If you'd rather work from annual totals than per-transaction records, enter what your statements say here — it's the figure a reviewer would check against. This doesn't replace the ledger; it sits alongside it as your own reconciliation.</p>
+    <div class="grid g3">
+      <div class="field"><label>Tax year</label><input type="number" id="lyYear"></div>
+      <div class="field"><label>Deductible interest paid ($)</label><input type="number" id="lyInterest" step="0.01"></div>
+      <div class="field"><label>HELOC balance (investment) $</label><input type="number" id="lyHeloc" step="0.01"></div>
+      <div class="field"><label>Mortgage balance $</label><input type="number" id="lyMort" step="0.01"></div>
+      <div class="field"><label>Portfolio value $</label><input type="number" id="lyPort" step="0.01"></div>
+      <div class="field"><label>Dividends received $</label><input type="number" id="lyDiv" step="0.01"></div>
+    </div>
+    <div class="field"><label>Note</label><input type="text" id="lyNote" placeholder="e.g. all statements saved to /2026 folder"></div>
+    <button class="primary" id="lyAdd">Add year</button>
+    <div class="scrollx" style="margin-top:.8rem"><table id="lyTable"></table></div>
+  </div></section>
 
 <!-- ========== SIMULATOR ========== -->
 <section class="view" id="view-sim">
@@ -810,7 +814,8 @@ const BLANK = () => ({
   tx: [],                             // investment transactions
   lastImport: null,                   // {at, newest} — so you know what to export next time
   refunds: [],                        // {year,amount,to,note}
-  lightYears: [],                     // annual summaries
+  lightYears: [],                     // optional annual summaries from statements
+  quickStartDismissed: false,
   taxMTR: null,
   theme:'dark',
   autoSave:false,          // explicit opt-in; never inferred from having a file open
@@ -1090,10 +1095,7 @@ document.querySelectorAll('.navbtn').forEach(b=>{
 });
 /* ---------- light/full mode ---------- */
 function setMode(m){
-  S.mode = m;
-  $('modeLight').classList.toggle('on', m==='light');
-  $('modeFull').classList.toggle('on', m==='full');
-  $('lightPanel').style.display = m==='light' ? '' : 'none';
+  S.mode = 'full';   // Light/Full is retired; annual summaries live on the Tax tab
 }
 function applyTheme(t){
   if(t==='light') document.documentElement.setAttribute('data-theme','light');
@@ -1106,8 +1108,6 @@ $('btnTheme').onclick = ()=>{
   renderAll();            // charts re-read CSS vars
   autoSaveMaybe(); dirty = true;
 };
-$('modeLight').onclick = ()=>{ setMode('light'); touch(); };
-$('modeFull').onclick  = ()=>{ setMode('full'); touch(); };
 
 /* light-mode annual rows */
 $('lyAdd').onclick = ()=>{
@@ -2579,7 +2579,7 @@ $('taxCalc').onclick = ()=>{
   S.taxMTR = +$('taxMTR').value;
   const year = +$('taxYear').value || new Date().getFullYear();
   let interest, srcNote, recorded=null, est=null, t776=0;
-  if(S.mode==='light'){
+  if(false){
     const row = S.lightYears.find(r=>r.year===year);
     interest = row ? row.interest : 0;
     srcNote = row ? 'from your annual summary' : 'no annual summary for this year';
@@ -2706,7 +2706,7 @@ $('t1213Btn').onclick = ()=>{
   }
   const year = (+$('taxYear').value || new Date().getFullYear());
   let interest;
-  if(S.mode==='light'){ interest = S.lightYears.find(r=>r.year===year-1)?.interest || 0; }
+  if(false){ interest = 0; }
   else { interest = deductibleInterestForYear(year-1).total22100; }
   const projected = interest; // conservative: project this year = last year
   const out = `T1213 DRAFT WORKSHEET — Request to Reduce Tax Deductions at Source
@@ -2749,7 +2749,7 @@ function buildAudit(){
   let html = `<h3>Yearly deductible interest</h3>
     <p class="faint">Line 22100 is investment carrying charges. T776 is rental interest, claimed against rental income on a different form — the two are never combined.</p>
     <table><tr><th>Year</th><th class="num">Line 22100</th><th class="num">T776 rental</th><th>Source</th></tr>`;
-  if(S.mode==='light'){
+  if(false){
     html += S.lightYears.map(r=>`<tr><td>${r.year}</td><td class="num">${fmt$2(r.interest)}</td><td class="num faint">—</td><td class="faint">annual summary (bank statements)</td></tr>`).join('');
   } else {
     html += yr.map(y=>{ const r=deductibleInterestForYear(y);
@@ -3096,10 +3096,11 @@ function drawLines(cv, series){
 function renderDash(){
   // "Start here" shows only while there is genuinely nothing set up yet.
   const isEmpty = !S.mortgage.principal && !S.helocs.length && !S.tx.length && !S.lightYears.length;
-  const sh = $('startHere'); if(sh) sh.style.display = isEmpty ? '' : 'none';
+  const sh = $('startHere');
+  if(sh) sh.style.display = (isEmpty && !S.quickStartDismissed) ? '' : 'none';
   // deductible vs non-deductible debt today
   let dd=0, nd=0, portVal=null, dashMortStat=null, propDebt=0;
-  if(S.mode==='light' && S.lightYears.length){
+  if(false && S.lightYears.length){
     const r = S.lightYears[S.lightYears.length-1];
     dd = r.heloc; nd = r.mort; portVal = r.port;
   } else {
@@ -3123,37 +3124,32 @@ function renderDash(){
   $('lgnd').textContent = fmt$(nd); $('lgdd').textContent = fmt$(dd);
   // stats
   const yearNow = new Date().getFullYear();
-  const intYtd = S.mode==='light'
+  const intYtd = false
     ? (S.lightYears.find(r=>r.year===yearNow)?.interest ?? null)
     : deductibleInterestForYear(yearNow).total22100;
   const refundEst = (intYtd!=null && S.taxMTR!=null) ? intYtd*S.taxMTR/100 : null;
   $('dashStats').innerHTML = `
     <div class="stat"><div class="v gold">${fmt$(dd)}</div><div class="l">Deductible debt</div></div>
     <div class="stat"><div class="v red">${fmt$(nd)}</div><div class="l">Non-deductible debt</div></div>
-    <div class="stat"><div class="v">${portVal!=null?fmt$(portVal):'—'}</div><div class="l">${S.mode==='light'?'Portfolio value':'Portfolio (book value)'}</div></div>
+    <div class="stat"><div class="v">${portVal!=null?fmt$(portVal):'—'}</div><div class="l">Portfolio (book value)</div></div>
     <div class="stat"><div class="v">${intYtd!=null?fmt$2(intYtd):'—'}</div><div class="l">Deductible interest ${yearNow}</div></div>
     <div class="stat"><div class="v green">${refundEst!=null?fmt$2(refundEst):'—'}</div><div class="l">${S.taxMTR!=null?`Est. refund @ ${S.taxMTR}%`:'Est. refund — set tax rate'}</div></div>
     ${propDebt>0?`<div class="stat"><div class="v">${fmt$(propDebt)}</div><div class="l">Other property debt</div></div>`:''}
     ${dashMortStat && dashMortStat.meta.paidOff && dashMortStat.payoffDelta ? `<div class="stat"><div class="v ${dashMortStat.payoffDelta.months>=0?'green':'red'}">${dashMortStat.payoffDelta.months===0?'on time':(dashMortStat.payoffDelta.months>0?fmtMonths(dashMortStat.payoffDelta.months)+' sooner':fmtMonths(-dashMortStat.payoffDelta.months)+' later')}</div><div class="l">Mortgage-free vs. original term</div></div>`:''}`;
   // dashboard chart — annual summaries in Light mode, replayed ledger in Full mode
   let labels=[], port=[], debt=[];
-  if(S.mode==='light' && S.lightYears.length){
-    S.lightYears.forEach(r=>{ labels.push(r.year); port.push(r.port); debt.push(-(r.mort+r.heloc)); });
-  } else if(S.mode!=='light'){
+  if(false){
+  } else {
     const h = buildHistorySeries();
     labels = h.labels; port = h.port; debt = h.debt;
   }
   drawLines($('dashChart'), labels.length ? [
-    {label: S.mode==='light' ? 'Portfolio value' : 'Portfolio (book value)', color:'#5FBF8F', data:port},
+    {label:'Portfolio (book value)', color:'#5FBF8F', data:port},
     {label:'Total debt (−)', color:'#D96A5F', data:debt}
   ] : []);
   $('dashChartNote').textContent = labels.length
-    ? (S.mode==='light'
-        ? 'Portfolio value vs. total debt, from your annual summaries.'
-        : 'Year-end portfolio book value (ACB) vs. total debt (mortgage + HELOC), replayed from your ledger.')
-    : (S.mode==='light'
-        ? 'Add annual summaries above to plot your position over time.'
-        : 'Add mortgage details, HELOC draws, or investment transactions to plot your position over time.');
+    ? 'Year-end portfolio book value (ACB) vs. total debt (mortgage + HELOC), replayed from your ledger.'
+    : 'Add mortgage details, HELOC draws, or investment transactions to plot your position over time.';
 }
 
 // Replay every dated event to produce year-end snapshots of book value and debt.
@@ -3530,6 +3526,107 @@ window.editPropRow = (pi,list,idx)=>{
     date:r.date, amount:r.amount, note:r.note,
     selLabel:'Category', selected:r.cat,
     options: list==='expenses' ? Object.entries(EXPCATS).map(([k,v])=>({value:k,label:v.label})) : null });
+};
+
+
+/* =================================================================
+   QUICK START — a ten-field viability check for someone with nothing
+   entered yet, that can then seed the tracker from the same numbers.
+   Deliberately reuses the same break-even and payment maths as the
+   Simulator rather than modelling anything new.
+   ================================================================= */
+// Work out the compounding basis by testing which one reproduces the payment
+// the user actually makes. Saves asking the hardest question in setup.
+function inferCompounding(principal, ratePct, years, freq, actualPay){
+  const cands = ['2','12','match','1','4','365'];
+  let best=null, bestDiff=Infinity;
+  for(const c of cands){
+    const p = stdPayment(principal, ratePct, years, freq, c);
+    const d = Math.abs(p - actualPay);
+    if(d < bestDiff){ bestDiff = d; best = c; }
+  }
+  // Only trust it if it lands close; otherwise fall back to the Canadian default.
+  return { comp: bestDiff <= Math.max(actualPay*0.02, 5) ? best : '2',
+           confident: bestDiff <= Math.max(actualPay*0.02, 5), diff: bestDiff };
+}
+$('qsRun').onclick = ()=>{
+  const v = id => { const x = $(id).value; return x===''? null : +x; };
+  const pay=v('qsPay'), mRate=v('qsMRate'), prin=v('qsPrin'), amort=v('qsAmort'),
+        hBal=v('qsHBal')||0, hRate=v('qsHRate'), inv=v('qsInv')||0,
+        ret=v('qsRet'), mtr=v('qsMTR'), freq=$('qsFreq').value;
+  const missing = [];
+  if(!pay) missing.push('mortgage payment');
+  if(mRate==null) missing.push('mortgage rate');
+  if(!prin) missing.push('principal remaining');
+  if(!amort) missing.push('amortization left');
+  if(hRate==null) missing.push('HELOC rate');
+  if(ret==null) missing.push('expected return');
+  if(mtr==null) missing.push('marginal tax rate');
+  if(missing.length){ alert('Still need: '+missing.join(', ')+'.'); return; }
+
+  const inf = inferCompounding(prin, mRate, amort, freq, pay);
+  const m = paymentsPerYear(freq);
+  const calcPay = stdPayment(prin, mRate, amort, freq, inf.comp);
+
+  const afterTaxCost = hRate*(1-mtr/100);       // break-even return
+  const edge = ret - afterTaxCost;
+  const annualPrin = (()=>{             // principal repaid over the next year
+    let bal=prin, i=periodicRate(mRate,m,inf.comp), paid=0;
+    for(let k=0;k<m && bal>0;k++){ const int=bal*i; const pr=Math.min(pay-int,bal); bal-=pr; paid+=pr; }
+    return paid;
+  })();
+  const yr1Interest = (hBal + annualPrin/2) * hRate/100;   // rough: room converts through the year
+  const yr1Refund = yr1Interest * mtr/100;
+  const worth = edge > 0;
+
+  $('qsOut').innerHTML = `
+    <div class="statgrid" style="margin-bottom:.7rem">
+      <div class="stat"><div class="v gold">${afterTaxCost.toFixed(2)}%</div><div class="l">Your break-even return</div></div>
+      <div class="stat"><div class="v ${worth?'green':'red'}">${edge>=0?'+':''}${edge.toFixed(2)}%</div><div class="l">Your edge over break-even</div></div>
+      <div class="stat"><div class="v">${fmt$(annualPrin)}</div><div class="l">Convertible in year one</div></div>
+      <div class="stat"><div class="v green">${fmt$(yr1Refund)}</div><div class="l">Rough year-one refund</div></div>
+    </div>
+    <div class="callout">
+      <b>${worth ? 'On these numbers, the strategy is worth considering.' : 'On these numbers, the strategy does not pay.'}</b>
+      Borrowing at ${hRate}% and deducting at ${mtr}% costs you <b>${afterTaxCost.toFixed(2)}%</b> after tax.
+      ${worth
+        ? `You expect ${ret}%, so every converted dollar earns about <b>${edge.toFixed(2)}%</b> more than it costs. Paying down your mortgage frees roughly <b>${fmt$(annualPrin)}</b> of room over the next year to convert and invest.`
+        : `You expect ${ret}%, which is <b>${Math.abs(edge).toFixed(2)}%</b> below what the borrowing costs. Converting would lose money on these assumptions — the answer changes if rates fall, your tax rate rises, or your return expectation is genuinely higher.`}
+      <br><span class="faint">A rough first look, not a projection: it assumes steady rates, a smooth return, and ignores tax on investment income. The Simulator runs this properly against a do-nothing baseline.</span>
+    </div>
+    <p class="faint" style="margin:.6rem 0 .4rem">${inf.confident
+      ? `Your payment matches <b>${compLabel(inf.comp)}</b> compounding, so that's what the tracker will use — no need to dig through your mortgage documents.`
+      : `Your payment doesn't match a standard compounding basis (closest is ${compLabel(inf.comp)}, off by ${fmt$2(inf.diff)} per payment). That usually means the payment includes property tax or insurance, or the balance and amortization aren't from the same date. Worth checking before you rely on the schedule.`}</p>
+    <div class="row" style="margin-top:.6rem">
+      <button class="primary" id="qsAdopt">Set up my tracker with these numbers</button>
+      <button id="qsDismiss">Just exploring for now</button>
+    </div>`;
+  $('qsAdopt').onclick = ()=>{
+    const pr = primaryProperty();
+    Object.assign(pr.mortgage, {
+      principal: prin, rate: mRate, amortYears: amort, freq,
+      compounding: inf.comp, start: today(),
+      paymentMode: 'auto', customPayment: null });
+    if(!S.helocs.length && (hRate!=null)){
+      S.helocs.push({id:uid(), name:'Investment line', propertyId:pr.id,
+        limit:null, draws:[], payments:[], interestNotes:[],
+        rateMode:'fixed', delta:null, rateHistory:[{date:today(), rate:hRate}],
+        limitMode:'fixed', homeValue:null, maxLTV:null, initialRoom:null, growShare:100});
+      if(hBal>0) S.helocs[0].draws.push({id:uid(), date:today(), amount:hBal,
+        purpose:'invest', note:'opening balance carried in from Quick start'});
+    }
+    if(inv>0 && !S.tx.length){
+      S.tx.push({id:uid(), seq:0, type:'open', date:today(), sym:'PORTFOLIO',
+        qty:1, amount:inv, note:'opening position carried in from Quick start — replace with your actual holdings'});
+    }
+    S.taxMTR = mtr;
+    alert('Set up from your Quick start figures.\n\n'
+      + 'Your mortgage is on the Properties tab with a credit line beside it, and your tax rate is set.\n\n'
+      + (inv>0 ? 'Your invested total went in as a single opening position called PORTFOLIO — replace it with your actual holdings when you have them, so ACB tracking works.\n\n' : '')
+      + 'The start date is today, so the schedule runs forward from your current balance rather than reconstructing history.');
+    touch(); gotoTab('property');
+  };
+  $('qsDismiss').onclick = ()=>{ S.quickStartDismissed = true; touch(); };
 };
 
 function renderAll(){

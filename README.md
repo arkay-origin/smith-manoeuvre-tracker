@@ -99,7 +99,8 @@ Not sure the strategy suits you? The Simulator answers that before you commit to
 
 **Dashboard and audit**
 - Debt conversion percentage, non-deductible → deductible
-- Light mode (annual statement totals) or Full mode (per-transaction), with the net-position chart plotted in either
+- Quick start: ten figures give a viability answer, then set the tracker up from them in one click
+- Annual statement totals can be recorded on the Tax tab as a reconciliation against the ledger
 - Printable audit package, Schedule 3 disposition support, full JSON export
 - Beginner's guide: what the strategy is, how it differs from leveraged investing, the CRA's tracing test, common mistakes, and when not to do it
 - Record-keeping guide covering capitalized interest, ROC, mixed use, and superficial loss
@@ -130,6 +131,8 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Dates are build dates; the live site always serves the newest.
+
+**2026-08-13** — Quick start replaces the Light/Full mode toggle. Ten figures off a mortgage and HELOC statement give an immediate read on whether the strategy pays — your break-even return, your edge over it, how much is convertible in the first year — and then set the tracker up from the same numbers in one click. The compounding basis is worked out by testing which one reproduces the payment you entered, so you don't have to find it in your mortgage documents; if nothing matches, it says so and explains why. Annual summaries from statements move to the Tax tab as an optional reconciliation rather than a separate mode.
 
 **2026-08-12** — Beginner's guide added to Audit & Guide, ahead of the record-keeping material and the printable package. Covers what the strategy is, how it differs from ordinary leveraged investing, what you need before starting, the monthly loop mapped to each tab, what the CRA actually tests, the mistakes that break deductibility, what your accountant will want, and when not to do this at all. Illustrative figures throughout, labelled as such.
 
