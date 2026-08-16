@@ -168,6 +168,12 @@ canvas.chart{width:100%;height:300px;background:var(--panel2);border:1px solid v
 /* Action columns (edit/delete) align right across every table. Kept as normal
    table cells — display:flex on a <td> drops table-cell semantics and lets the
    column drift out of line with its header. */
+tr.yearrow{cursor:pointer}
+tr.yearrow:hover td{background:var(--panel2)}
+tr.yearrow .disc{color:var(--gold);font-size:.7rem;margin-right:.2rem}
+tr.subhead th{font-size:.68rem;color:var(--faint);padding-top:.5rem}
+tr.subrow td{font-size:.84rem;color:var(--muted)}
+tr.subrow td:first-child{padding-left:1.4rem}
 th.sortable{cursor:pointer;user-select:none}
 th.sortable:hover{color:var(--gold)}
 .sortarrow{font-size:.6rem;opacity:.65}
@@ -228,6 +234,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <button class="navbtn active" data-view="dash">Dashboard</button>
   <button class="navbtn" data-view="invest">Investments</button>
   <button class="navbtn" data-view="property">Properties</button>
+  <button class="navbtn" data-view="credit">Credit lines</button>
   <button class="navbtn" data-view="tax">Tax</button>
   <button class="navbtn" data-view="sim">Simulator</button>
   <button class="navbtn" data-view="audit">Audit &amp; Guide</button>
@@ -241,7 +248,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">Build 2026-08-13</div>
+  <div id="version" class="noprint">v2.4.0</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -350,6 +357,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div class="pagehead"><h1>Properties</h1>
     <div class="acts"><button class="primary" id="pAddProp">+ Add property</button></div></div>
   <div class="modewrap" id="propSwitch" style="margin-bottom:.9rem"></div>
+  <div id="propLineSummary"></div>
 
   <!-- principal residence: mortgage + credit lines -->
   <div id="pane-primary">
@@ -478,7 +486,6 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div class="card">
     <div class="spread"><h2>Amortization schedule</h2>
       <div class="acts">
-        <div class="modewrap"><button id="schedYearly" class="on">Yearly</button><button id="schedFull">Full</button></div>
         <button class="small" id="mCsv">Export CSV</button>
       </div>
     </div>
@@ -494,9 +501,6 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <p><b>Principal payments split pro-rata.</b> On a line holding both deductible and non-deductible balances, a payment reduces each in proportion to its share. That reflects the CRA's general position on mixed-use borrowing — you normally cannot direct repayments at the non-deductible portion first. If your situation supports different tracing, the figures here won't match your filing position.</p>
     <p class="gold">Your lender's statements govern. Reconcile against them before filing.</p>
   </details>
-  <div class="spread" style="margin-top:1.2rem"><h2>Credit lines</h2>
-    <div class="acts"><button class="primary" id="hAddLine">+ Add credit line</button></div></div>
-  <div id="helocList"></div>
 
   </div>
 
@@ -507,6 +511,14 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     </div>
     <div id="propWrap"></div>
   </div>
+</section>
+
+<!-- ========== CREDIT LINES ========== -->
+<section class="view" id="view-credit">
+  <div class="pagehead"><h1>Credit lines</h1>
+    <div class="acts"><button class="primary" id="hAddLine">+ Add credit line</button></div></div>
+  <p class="faint">Draws, payments and interest for every line, whichever property secures it. Each line records which property it's against — that's what the growing-room limits are calculated from.</p>
+  <div id="helocList"></div>
 </section>
 
 <section class="view" id="view-tax">
@@ -888,13 +900,13 @@ function installAccessors(obj){
   return obj;
 }
 let S = installAccessors(BLANK());
-let schedView = 'yearly';
-let schedShowAll = false;
+const schedOpenYears = {};   // which years are expanded in the schedule
+window.toggleSchedYear = y => { schedOpenYears[y] = !schedOpenYears[y]; renderMortgage(); };
 let txView = 'sym';
 /* Date sorting is a DISPLAY concern only. Every engine (schedule, ACB, interest
    accrual) sorts events by true date internally regardless of what's shown —
    reversing a table must never reach the computation. */
-const sortDir = { prepay:'desc', heloc:'desc', ledger:'desc', refunds:'desc', propexp:'desc' };
+const sortDir = { prepay:'desc', heloc:'desc', ledger:'desc', refunds:'desc', propexp:'desc', sched:'asc' };
 function toggleSort(key){ sortDir[key] = sortDir[key]==='asc' ? 'desc' : 'asc'; renderAll(); }
 window.toggleSort = toggleSort;
 function byDate(rows, key, get){
@@ -1447,39 +1459,44 @@ function renderMortgage(){
       <td><span class="tag blue">${esc(r.source)}</span></td><td class="faint">${esc(r.note)}</td>
       <td class="actcell"><button class="small" onclick="editPP(${i})">Edit</button><button class="small danger" onclick="delPP(${i})" aria-label="Delete prepayment" title="Delete prepayment">×</button></td></tr>`;}).join('')
     : '<tr><td class="empty">No prepayments recorded. Prepay → re-borrow → invest is the whole engine.</td></tr>';
-  // schedule — yearly rollup or full per-payment detail
+  /* Schedule: years roll up, and any year expands in place to show its own
+     payments. Replaces the old Yearly/Full switch — you never render more than
+     one year of rows unless you ask, so the 1,500-row problem goes away. */
   const t = $('mSched');
   if(!rows){ t.innerHTML='<tr><td class="empty">No schedule yet.</td></tr>'; return; }
-  if(schedView==='full'){
-    // Accelerated weekly over 30 years is ~1,500 rows, rebuilt on every edit.
-    // Show a window by default and let the user ask for the rest.
-    const CAP = 240;
-    const shown = schedShowAll ? rows : rows.slice(0, CAP);
-    const hidden = rows.length - shown.length;
-    const body = shown.map(r=>{
-      if(r.type==='pay') return `<tr><td>${r.date}</td><td><span class="faint">${freqLabel(r.freq)}</span>${r.neg?' <span class="tag red">neg</span>':''}${r.custom?' <span class="tag gold">custom</span>':''}</td>
-        <td class="num red">${fmt$2(r.interest)}</td><td class="num ${r.principal<0?'red':''}">${fmt$2(r.principal)}</td>
-        <td class="num">${fmt$2(r.pay)}</td><td class="num">${fmt$(r.bal)}</td></tr>`;
-      if(r.type==='prepay') return `<tr><td>${r.date}</td><td><span class="tag gold">Prepayment</span>${r.note?` <span class="faint">${esc(r.note)}</span>`:''}</td>
-        <td></td><td class="num gold">${fmt$2(r.amount)}</td><td></td><td class="num">${fmt$(r.bal)}</td></tr>`;
-      if(r.type==='rate') return `<tr><td>${r.date}</td><td colspan="4"><span class="tag blue">${esc(r.note)}</span></td><td class="num">${fmt$(r.bal)}</td></tr>`;
-      if(r.type==='freq') return `<tr><td>${r.date}</td><td colspan="4"><span class="tag blue">${esc(r.note)}</span></td><td class="num">${fmt$(r.bal)}</td></tr>`;
-      return '';
+  const byYear = {};
+  rows.forEach(r=>{
+    const y=r.date.slice(0,4);
+    const b=(byYear[y]=byYear[y]||{int:0,prin:0,pre:0,end:0,neg:false,rows:[]});
+    b.end=r.bal; b.rows.push(r);
+    if(r.type==='pay'){ b.int+=r.interest; b.prin+=r.principal; if(r.neg) b.neg=true; }
+    if(r.type==='prepay') b.pre+=r.amount;
+  });
+  const years = Object.keys(byYear).sort((x,y)=> sortDir.sched==='asc' ? x.localeCompare(y) : y.localeCompare(x));
+  const detailRow = r => {
+    if(r.type==='pay') return `<tr class="subrow"><td>${r.date}</td>
+      <td><span class="faint">${freqLabel(r.freq)}</span>${r.neg?' <span class="tag red">neg</span>':''}${r.custom?' <span class="tag gold">custom</span>':''}</td>
+      <td class="num red">${fmt$2(r.interest)}</td><td class="num ${r.principal<0?'red':''}">${fmt$2(r.principal)}</td>
+      <td class="num">${fmt$2(r.pay)}</td><td class="num">${fmt$(r.bal)}</td></tr>`;
+    if(r.type==='prepay') return `<tr class="subrow"><td>${r.date}</td>
+      <td><span class="tag gold">Prepayment</span>${r.note?` <span class="faint">${esc(r.note)}</span>`:''}</td>
+      <td></td><td class="num gold">${fmt$2(r.amount)}</td><td></td><td class="num">${fmt$(r.bal)}</td></tr>`;
+    if(r.type==='rate'||r.type==='freq') return `<tr class="subrow"><td>${r.date}</td>
+      <td colspan="4"><span class="tag blue">${esc(r.note)}</span></td><td class="num">${fmt$(r.bal)}</td></tr>`;
+    return '';
+  };
+  t.innerHTML = `<tr>${sortHead('sched','Year')}<th class="num">Interest</th><th class="num">Principal</th><th class="num">Prepaid</th><th class="num">End balance</th><th class="actcell"></th></tr>`
+    + years.map(y=>{ const r=byYear[y], open=!!schedOpenYears[y];
+      return `<tr class="yearrow" onclick="toggleSchedYear('${y}')">
+          <td><span class="disc">${open?'▾':'▸'}</span> ${y}${r.neg?' <span class="tag red">neg am</span>':''}</td>
+          <td class="num red">${fmt$(r.int)}</td>
+          <td class="num ${r.prin<0?'red':''}">${fmt$(r.prin)}</td>
+          <td class="num gold">${r.pre?fmt$(r.pre):'—'}</td>
+          <td class="num">${fmt$(r.end)}</td>
+          <td class="actcell faint" style="font-size:.72rem">${r.rows.length} entries</td></tr>`
+        + (open ? `<tr class="subhead"><th>Date</th><th>Event</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Payment</th><th class="num">Balance</th></tr>`
+                  + r.rows.map(detailRow).join('') : '');
     }).join('');
-    t.innerHTML = '<tr><th>Date</th><th>Event</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Payment</th><th class="num">Balance</th></tr>'+body
-      + (hidden>0 ? `<tr><td colspan="6" class="empty">${hidden.toLocaleString()} more rows — <button class="small" id="schedMore">show the full schedule</button> or export CSV.</td></tr>` : '');
-    const moreBtn = $('schedMore');
-    if(moreBtn) moreBtn.onclick = ()=>{ schedShowAll = true; renderMortgage(); };
-  } else {
-    const byYear = {};
-    rows.forEach(r=>{ const y=r.date.slice(0,4); (byYear[y]=byYear[y]||{int:0,prin:0,pre:0,end:0,neg:false}).end=r.bal;
-      if(r.type==='pay'){byYear[y].int+=r.interest; byYear[y].prin+=r.principal; if(r.neg) byYear[y].neg=true;}
-      if(r.type==='prepay'){byYear[y].pre+=r.amount;} });
-    t.innerHTML = '<tr><th>Year</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Prepaid</th><th class="num">End balance</th></tr>'+
-      Object.entries(byYear).map(([y,r])=>`<tr><td>${y}${r.neg?' <span class="tag red">neg am</span>':''}</td><td class="num red">${fmt$(r.int)}</td>
-        <td class="num ${r.prin<0?'red':''}">${fmt$(r.prin)}</td><td class="num gold">${r.pre?fmt$(r.pre):'—'}</td>
-        <td class="num">${fmt$(r.end)}</td></tr>`).join('');
-  }
 }
 window.delRC = i => { S.mortgage.rateChanges.splice(i,1); touch(); };
 window.delPP = i => { S.mortgage.prepayments.splice(i,1); touch(); };
@@ -1508,8 +1525,6 @@ $('fcAdd').onclick = ()=>{
   S.mortgage.freqChanges.sort((a,b)=>a.date.localeCompare(b.date));
   touch();
 };
-$('schedYearly').onclick = ()=>{ schedView='yearly'; schedShowAll=false; $('schedYearly').classList.add('on'); $('schedFull').classList.remove('on'); renderMortgage(); };
-$('schedFull').onclick  = ()=>{ schedView='full';  $('schedFull').classList.add('on'); $('schedYearly').classList.remove('on'); renderMortgage(); };
 
 // Every mortgage configuration field commits as you change it — the same
 // behaviour as the HELOC tab and the change-tables below. Nothing is held in a
@@ -3340,11 +3355,40 @@ function propYearRows(pr){
 }
 let activeProp = 0;   // index into S.properties
 window.selectProp = i => { activeProp = i; renderProperties(); };
+
+// Read-only view of the lines secured by a given property. The editable copy
+// lives on the Credit lines tab — same array, drawn twice, nothing to sync.
+function renderPropLineSummary(pr){
+  const el = $('propLineSummary'); if(!el) return;
+  if(!pr){ el.innerHTML=''; return; }
+  const mine = S.helocs.filter(h=>h.propertyId===pr.id);
+  if(!mine.length){
+    el.innerHTML = `<div class="card"><div class="spread"><h2>Credit lines</h2>
+      <button class="small" data-goto="credit">Open Credit lines</button></div>
+      <p class="faint">No lines secured by ${esc(pr.name)} yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="card"><div class="spread"><h2>Credit lines</h2>
+      <button class="small" data-goto="credit">Open Credit lines</button></div>
+    <p class="faint">Secured by ${esc(pr.name)}. Draws and payments are recorded on the Credit lines tab.</p>
+    <div class="scrollx"><table>
+      <tr><th>Line</th><th class="num">Balance</th><th class="num">Deductible</th><th class="num">Room left</th><th class="num">Rate</th></tr>
+      ${mine.map(h=>{ const t=helocTotals(h), lim=helocLimitNow(h), r=helocRateNow(h);
+        const room = lim.limit!=null ? lim.limit - t.bal : null;
+        return `<tr><td>${esc(h.name)}</td>
+          <td class="num">${fmt$(t.bal)}</td>
+          <td class="num gold">${fmt$(t.dedBal)}</td>
+          <td class="num ${room!=null&&room<0?'red':''}">${room!=null?fmt$(room):'—'}</td>
+          <td class="num">${r!=null?r.toFixed(2)+'%':'—'}</td></tr>`;}).join('')}
+    </table></div></div>`;
+}
+
 function renderProperties(){
   if(activeProp >= S.properties.length) activeProp = 0;
   const cur = S.properties[activeProp] || primaryProperty();
   $('propSwitch').innerHTML = S.properties.map((pp,i)=>
     `<button class="${i===activeProp?'on':''}" onclick="selectProp(${i})">${esc(pp.name)}</button>`).join('');
+  renderPropLineSummary(cur);
   const onPrimary = !!(cur && cur.isPrimary);
   $('pane-primary').style.display = onPrimary ? '' : 'none';
   $('pane-other').style.display   = onPrimary ? 'none' : '';
@@ -3624,7 +3668,10 @@ $('qsRun').onclick = ()=>{
       + 'Your mortgage is on the Properties tab with a credit line beside it, and your tax rate is set.\n\n'
       + (inv>0 ? 'Your invested total went in as a single opening position called PORTFOLIO — replace it with your actual holdings when you have them, so ACB tracking works.\n\n' : '')
       + 'The start date is today, so the schedule runs forward from your current balance rather than reconstructing history.');
-    touch(); gotoTab('property');
+    // hydrateForms() repopulates the CONFIG INPUTS from state; renderAll() only
+    // redraws stats and tables. Without it the mortgage boxes and the tax rate
+    // field sit empty even though the data is there.
+    hydrateForms(); touch(); gotoTab('property');
   };
   $('qsDismiss').onclick = ()=>{ S.quickStartDismissed = true; touch(); };
 };
