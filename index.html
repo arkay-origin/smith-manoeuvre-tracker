@@ -248,7 +248,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">v2.4.0</div>
+  <div id="version" class="noprint">v2.5.0</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -517,7 +517,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 <section class="view" id="view-credit">
   <div class="pagehead"><h1>Credit lines</h1>
     <div class="acts"><button class="primary" id="hAddLine">+ Add credit line</button></div></div>
-  <p class="faint">Draws, payments and interest for every line, whichever property secures it. Each line records which property it's against — that's what the growing-room limits are calculated from.</p>
+  <p class="faint">Draws, payments and interest for every line. Each line records what secures it — that's what the growing-room limits are calculated from.</p>
+  <div class="modewrap" id="lineSwitch" style="margin-bottom:.9rem"></div>
   <div id="helocList"></div>
 </section>
 
@@ -779,6 +780,17 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <div id="csvPreview" class="faint"></div>
   </div>
   <div class="row" style="justify-content:flex-end"><button id="csvCancel">Cancel</button><button class="primary" id="csvGo" disabled>Import</button></div>
+</dialog>
+
+<dialog id="lineDialog">
+  <h2>Add credit line</h2>
+  <p class="faint" style="margin:.2rem 0 .8rem">Name it after the account so it matches your statements.</p>
+  <div class="field"><label>Line name</label><input type="text" id="lnName" placeholder="e.g. STEP — SM sub-account"></div>
+  <div class="field"><label>Secured by</label><select id="lnProp"></select></div>
+  <p class="faint" id="lnHint" style="margin:.2rem 0 .6rem"></p>
+  <div class="row" style="justify-content:flex-end;margin-top:.4rem">
+    <button id="lnCancel">Cancel</button><button class="primary" id="lnSave">Add line</button>
+  </div>
 </dialog>
 
 <dialog id="editDialog">
@@ -1460,42 +1472,52 @@ function renderMortgage(){
       <td class="actcell"><button class="small" onclick="editPP(${i})">Edit</button><button class="small danger" onclick="delPP(${i})" aria-label="Delete prepayment" title="Delete prepayment">×</button></td></tr>`;}).join('')
     : '<tr><td class="empty">No prepayments recorded. Prepay → re-borrow → invest is the whole engine.</td></tr>';
   /* Schedule: years roll up, and any year expands in place to show its own
-     payments. Replaces the old Yearly/Full switch — you never render more than
-     one year of rows unless you ask, so the 1,500-row problem goes away. */
+     payments. Summary rows and detail rows share ONE column set so the numbers
+     line up vertically — a year row fills the aggregate cells, a payment row
+     fills its own, and empty cells stay empty rather than shifting columns. */
   const t = $('mSched');
   if(!rows){ t.innerHTML='<tr><td class="empty">No schedule yet.</td></tr>'; return; }
   const byYear = {};
   rows.forEach(r=>{
     const y=r.date.slice(0,4);
-    const b=(byYear[y]=byYear[y]||{int:0,prin:0,pre:0,end:0,neg:false,rows:[]});
+    const b=(byYear[y]=byYear[y]||{int:0,prin:0,pre:0,pay:0,end:0,neg:false,rows:[]});
     b.end=r.bal; b.rows.push(r);
-    if(r.type==='pay'){ b.int+=r.interest; b.prin+=r.principal; if(r.neg) b.neg=true; }
+    if(r.type==='pay'){ b.int+=r.interest; b.prin+=r.principal; b.pay+=r.pay; if(r.neg) b.neg=true; }
     if(r.type==='prepay') b.pre+=r.amount;
   });
   const years = Object.keys(byYear).sort((x,y)=> sortDir.sched==='asc' ? x.localeCompare(y) : y.localeCompare(x));
+  const EMPTY = '<td class="num faint">—</td>';
   const detailRow = r => {
     if(r.type==='pay') return `<tr class="subrow"><td>${r.date}</td>
       <td><span class="faint">${freqLabel(r.freq)}</span>${r.neg?' <span class="tag red">neg</span>':''}${r.custom?' <span class="tag gold">custom</span>':''}</td>
-      <td class="num red">${fmt$2(r.interest)}</td><td class="num ${r.principal<0?'red':''}">${fmt$2(r.principal)}</td>
-      <td class="num">${fmt$2(r.pay)}</td><td class="num">${fmt$(r.bal)}</td></tr>`;
+      <td class="num red">${fmt$2(r.interest)}</td>
+      <td class="num ${r.principal<0?'red':''}">${fmt$2(r.principal)}</td>
+      ${EMPTY}
+      <td class="num">${fmt$2(r.pay)}</td>
+      <td class="num">${fmt$(r.bal)}</td></tr>`;
     if(r.type==='prepay') return `<tr class="subrow"><td>${r.date}</td>
       <td><span class="tag gold">Prepayment</span>${r.note?` <span class="faint">${esc(r.note)}</span>`:''}</td>
-      <td></td><td class="num gold">${fmt$2(r.amount)}</td><td></td><td class="num">${fmt$(r.bal)}</td></tr>`;
+      ${EMPTY}${EMPTY}
+      <td class="num gold">${fmt$2(r.amount)}</td>
+      ${EMPTY}
+      <td class="num">${fmt$(r.bal)}</td></tr>`;
     if(r.type==='rate'||r.type==='freq') return `<tr class="subrow"><td>${r.date}</td>
-      <td colspan="4"><span class="tag blue">${esc(r.note)}</span></td><td class="num">${fmt$(r.bal)}</td></tr>`;
+      <td><span class="tag blue">${esc(r.note)}</span></td>
+      ${EMPTY}${EMPTY}${EMPTY}${EMPTY}
+      <td class="num">${fmt$(r.bal)}</td></tr>`;
     return '';
   };
-  t.innerHTML = `<tr>${sortHead('sched','Year')}<th class="num">Interest</th><th class="num">Principal</th><th class="num">Prepaid</th><th class="num">End balance</th><th class="actcell"></th></tr>`
+  t.innerHTML = `<tr>${sortHead('sched','Year / date')}<th>Event</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Prepaid</th><th class="num">Payment</th><th class="num">Balance</th></tr>`
     + years.map(y=>{ const r=byYear[y], open=!!schedOpenYears[y];
       return `<tr class="yearrow" onclick="toggleSchedYear('${y}')">
-          <td><span class="disc">${open?'▾':'▸'}</span> ${y}${r.neg?' <span class="tag red">neg am</span>':''}</td>
+          <td><span class="disc">${open?'▾':'▸'}</span> <b>${y}</b>${r.neg?' <span class="tag red">neg am</span>':''}</td>
+          <td class="faint" style="font-size:.74rem">${r.rows.length} entr${r.rows.length===1?'y':'ies'}</td>
           <td class="num red">${fmt$(r.int)}</td>
           <td class="num ${r.prin<0?'red':''}">${fmt$(r.prin)}</td>
           <td class="num gold">${r.pre?fmt$(r.pre):'—'}</td>
-          <td class="num">${fmt$(r.end)}</td>
-          <td class="actcell faint" style="font-size:.72rem">${r.rows.length} entries</td></tr>`
-        + (open ? `<tr class="subhead"><th>Date</th><th>Event</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Payment</th><th class="num">Balance</th></tr>`
-                  + r.rows.map(detailRow).join('') : '');
+          <td class="num">${fmt$(r.pay)}</td>
+          <td class="num"><b>${fmt$(r.end)}</b></td></tr>`
+        + (open ? r.rows.map(detailRow).join('') : '');
     }).join('');
 }
 window.delRC = i => { S.mortgage.rateChanges.splice(i,1); touch(); };
@@ -1603,15 +1625,35 @@ const PURPOSES = {
   personal:    {label:'Personal (non-deductible)', cls:'red', deductible:false},
   other:       {label:'Other / mixed', cls:'red', deductible:false},
 };
+const lineDlg = $('lineDialog');
+function lnSync(){
+  const v = $('lnProp').value;
+  $('lnHint').innerHTML = v===''
+    ? 'An unsecured line still produces deductible interest if the money is used to invest — deductibility follows the use of funds, not the security. Growing-room limit types need a mortgage to grow against, so unsecured lines use a fixed limit.'
+    : 'Growing-room limits, if you use them, are calculated from this property\'s mortgage.';
+}
+$('lnProp').onchange = lnSync;
 $('hAddLine').onclick = ()=>{
-  const name = prompt('Name this credit line (e.g. "Scotia STEP — SM sub-account")');
-  if(!name) return;
+  $('lnName').value = '';
+  $('lnProp').innerHTML = S.properties.map(p=>
+    `<option value="${p.id}">${esc(p.name)}${p.isPrimary?' (principal residence)':''}</option>`).join('')
+    + '<option value="">Unsecured — not against a property</option>';
+  lnSync(); lineDlg.showModal();
+};
+$('lnCancel').onclick = ()=> lineDlg.close();
+$('lnSave').onclick = ()=>{
+  const name = $('lnName').value.trim();
+  if(!name){ alert('Give the line a name.'); return; }
+  addCreditLine(name, $('lnProp').value || null);
+  lineDlg.close();
+};
+function addCreditLine(name, propertyId){
   S.helocs.push({id:uid(), name, limit:null, draws:[], payments:[],
     rateMode:'fixed', delta:null, rateHistory:[],
     limitMode:'fixed', homeValue:null, maxLTV:null, initialRoom:null, growShare:100,
-    propertyId:(primaryProperty()||{}).id, interestNotes:[]});
+    propertyId: propertyId, interestNotes:[]});
   touch();
-};
+}
 // Backward-compat + normalization: fold any legacy single `rate` into rateHistory.
 function migrateHeloc(h){
   if(!h.rateHistory) h.rateHistory = [];
@@ -1631,7 +1673,7 @@ function migrateHeloc(h){
   if(h.maxLTV===undefined) h.maxLTV = null;
   if(h.initialRoom===undefined) h.initialRoom = null;
   if(h.growShare===undefined) h.growShare = 100;
-  if(!h.propertyId){ const pp = primaryProperty(); if(pp) h.propertyId = pp.id; }
+  if(h.propertyId===undefined) h.propertyId = (primaryProperty()||{}).id || null;
 }
 // Effective credit limit for a line, today. For a re-advanceable line linked to
 // the mortgage, the limit grows as principal is repaid:
@@ -1644,7 +1686,9 @@ function helocLimitNow(h){
   //         mortgage principal repaid that gets credited back to this line.
   // Room derives from the mortgage on the property that actually secures this
   // line — which is why lines carry propertyId.
-  const own = S.properties.find(p=>p.id===h.propertyId) || primaryProperty();
+  const own = h.propertyId ? S.properties.find(p=>p.id===h.propertyId) : null;
+  // Unsecured lines have no mortgage to grow against, so only a fixed limit works.
+  if(!own && h.limitMode!=='fixed') return {limit:h.limit ?? null, dynamic:false, unsecured:true};
   const ownMort = own ? own.mortgage : S.mortgage;
   const mortBalOf = () => {
     if(own && own.isPrimary){ const st = mortgageStats(buildSchedule()); return st ? st.balNow : (ownMort.principal||0); }
@@ -1710,12 +1754,30 @@ function helocTotals(h){
   const dedShare = (dedDraw+nonDraw)>0 ? dedDraw/(dedDraw+nonDraw) : 0;
   return { dedDraw, nonDraw, paid, bal, dedBal: Math.max(bal*dedShare,0), capint: h.draws.filter(d=>d.purpose==='capint').reduce((s,d)=>s+d.amount,0) };
 }
+let activeLineGroup = null;   // property id, '' for unsecured, null = not yet chosen
+function groupsForLines(){
+  const gs = [];
+  S.properties.forEach(p=>{ if(S.helocs.some(h=>h.propertyId===p.id)) gs.push({id:p.id, name:p.name}); });
+  if(S.helocs.some(h=>!h.propertyId)) gs.push({id:'', name:'Unsecured'});
+  return gs;
+}
+window.selectLineGroup = id => { activeLineGroup = id; renderHelocs(); };
 function renderHelocs(){
   const wrap = $('helocList');
   if(!S.helocs.length){ wrap.innerHTML = '<div class="empty">No credit lines yet. Add your readvanceable HELOC (and any others) to start tagging draws.</div>'; return; }
   S.helocs.forEach(migrateHeloc);
   const growModeCount = S.helocs.filter(x=>x.limitMode==='grow').length;
-  wrap.innerHTML = primePanel() + S.helocs.map((h,hi)=>{
+  // Group lines by what secures them, the same way properties are switched.
+  // With only one group the pills are noise, so they stay hidden.
+  const groups = groupsForLines();
+  if(activeLineGroup===null || !groups.some(g=>g.id===activeLineGroup))
+    activeLineGroup = groups.length ? groups[0].id : null;
+  $('lineSwitch').style.display = groups.length>1 ? '' : 'none';
+  $('lineSwitch').innerHTML = groups.map(g=>
+    `<button class="${g.id===activeLineGroup?'on':''}" onclick="selectLineGroup('${g.id}')">${esc(g.name)}</button>`).join('');
+  const visible = S.helocs.filter(h=> (h.propertyId||'') === (activeLineGroup||''));
+  wrap.innerHTML = primePanel() + visible.map(h=>{
+    const hi = S.helocs.indexOf(h);
     const t = helocTotals(h);
     const mixed = t.nonDraw>0 && t.dedDraw>0;
     const rNow = helocRateNow(h);
@@ -1734,12 +1796,13 @@ function renderHelocs(){
     const securedSel = `<div class="field"><label>Secured by</label>
         <select onchange="setHeloc(${hi},'propertyId',this.value)">
           ${S.properties.map(pp=>`<option value="${pp.id}"${h.propertyId===pp.id?' selected':''}>${esc(pp.name)}${pp.isPrimary?' (principal residence)':''}</option>`).join('')}
+          <option value=""${!h.propertyId?' selected':''}>Unsecured — not against a property</option>
         </select></div>`;
     const limitSel = sel => `<div class="field"><label>Limit type</label>
         <select onchange="setHeloc(${hi},'limitMode',this.value)">
           <option value="fixed"${sel==='fixed'?' selected':''}>Fixed limit</option>
-          <option value="grow"${sel==='grow'?' selected':''}>Re-advanceable — opening room + principal repaid</option>
-          <option value="readvanceable"${sel==='readvanceable'?' selected':''}>Re-advanceable — derived from home value &amp; LTV</option>
+          ${h.propertyId?`<option value="grow"${sel==='grow'?' selected':''}>Re-advanceable — opening room + principal repaid</option>
+          <option value="readvanceable"${sel==='readvanceable'?' selected':''}>Re-advanceable — derived from home value &amp; LTV</option>`:''}
         </select></div>`;
     const limitBlock = h.limitMode==='readvanceable'
       ? limitSel('readvanceable') +
@@ -1755,7 +1818,7 @@ function renderHelocs(){
     // principle as the Mortgage tab: metrics and entry first, setup collapsed.
     const cfgReady = (h.rateMode==='prime' ? h.delta!=null : (h.rateHistory||[]).length>0)
       && lim.limit != null;
-    return `<div class="card">
+    return `<div class="card" id="line-${h.id}" style="scroll-margin-top:1rem">
       <div class="spread"><h2>${esc(h.name)}</h2>
         <div class="row">
           <button class="small" onclick="renameHeloc(${hi})">Rename</button>
@@ -1821,6 +1884,7 @@ function renderHelocs(){
 }
 window.setHeloc = (hi,k,v)=>{
   S.helocs[hi][k]=(v===0? 0 : (v||null));
+  if(k==='propertyId' && !v){ S.helocs[hi].propertyId = null; S.helocs[hi].limitMode='fixed'; }
   if(k==='propertyId') delete S.helocs[hi].needsAssignment;
   touch();
 };
@@ -3358,6 +3422,17 @@ window.selectProp = i => { activeProp = i; renderProperties(); };
 
 // Read-only view of the lines secured by a given property. The editable copy
 // lives on the Credit lines tab — same array, drawn twice, nothing to sync.
+// Line names in the property summary jump to that line on the Credit lines tab.
+window.jumpToLine = id => {
+  const h = S.helocs.find(x=>x.id===id); if(!h) return;
+  activeLineGroup = h.propertyId || '';
+  gotoTab('credit');
+  setTimeout(()=>{
+    renderHelocs();
+    const el = document.getElementById('line-'+id);
+    if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 60);
+};
 function renderPropLineSummary(pr){
   const el = $('propLineSummary'); if(!el) return;
   if(!pr){ el.innerHTML=''; return; }
@@ -3375,7 +3450,7 @@ function renderPropLineSummary(pr){
       <tr><th>Line</th><th class="num">Balance</th><th class="num">Deductible</th><th class="num">Room left</th><th class="num">Rate</th></tr>
       ${mine.map(h=>{ const t=helocTotals(h), lim=helocLimitNow(h), r=helocRateNow(h);
         const room = lim.limit!=null ? lim.limit - t.bal : null;
-        return `<tr><td>${esc(h.name)}</td>
+        return `<tr><td><a href="#line-${h.id}" onclick="jumpToLine('${h.id}');return false">${esc(h.name)}</a></td>
           <td class="num">${fmt$(t.bal)}</td>
           <td class="num gold">${fmt$(t.dedBal)}</td>
           <td class="num ${room!=null&&room<0?'red':''}">${room!=null?fmt$(room):'—'}</td>

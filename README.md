@@ -27,7 +27,7 @@ You can also just download `index.html` and run it offline. It works exactly the
 1. **Mortgage** — principal, rate, compounding basis, start date. Compounding is required and has no default: semi-annual for most Canadian fixed mortgages, often monthly on variable. Your documents state it.
 2. **HELOC** — add your line with its rate basis and credit limit. If your room grows as you repay principal, choose a re-advanceable limit type.
 3. **Credit lines**
-- Every line on one tab, whichever property secures it
+- Every line on one tab, grouped by what secures it — including unsecured lines
 - Draws tagged by purpose, payments, interest records, rate history and limits
 - Each property shows a summary of the lines secured against it
 
@@ -136,6 +136,8 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Version numbers are major.minor.patch. The major number tracks the saved-file format, so a major bump means older builds can no longer read your data file. The live site always serves the newest.
+
+**v2.5.0** — Amortization schedule summary rows and expanded detail rows now share one column set, so interest, principal, prepaid, payment and balance line up vertically. Credit lines group by what secures them, with pills across the top the same way properties work, shown only when there's more than one group. Adding a line uses a proper dialog instead of a browser prompt, and you can now track an **unsecured** line of credit — deductibility follows the use of the money, not the security, so an unsecured line used to invest is tracked the same way; growing-room limit types need a mortgage, so unsecured lines use a fixed limit. Line names in the property summary link straight to that line.
 
 **v2.4.0** — Credit lines get their own tab again. The property each line is secured by is still recorded — that's what the growing-room limits are calculated from — and the Properties tab shows a read-only summary of the lines against each property, linking through. Amortization years now expand in place: click a year to see its payments, click again to close, replacing the old Yearly/Full switch and its row cap. The schedule's year column sorts both ways.
 
