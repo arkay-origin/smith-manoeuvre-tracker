@@ -61,9 +61,9 @@ Not sure the strategy suits you? The Simulator answers that before you commit to
 ## What it does
 
 **Mortgage**
-- Canadian semi-annual compounding — plus monthly, payment-cycle-matched, annual, quarterly, and daily
+- Canadian semi-annual compounding — plus monthly, payment-cycle-matched, annual, quarterly, daily compounded, and daily on actual days (balance × rate × days ÷ 365, as RBC and others bill)
 - Monthly / bi-weekly / accelerated bi-weekly / weekly / accelerated weekly payments
-- Payment frequency changes mid-mortgage (history before the change stays accurate)
+- Payment frequency and payment-date changes mid-mortgage (history before the change stays accurate)
 - Custom payment amounts, and dated payment changes
 - Rate changes and renewals, including a change of compounding basis at renewal
 - Trigger rate and negative-amortization warnings
@@ -136,6 +136,8 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Version numbers are major.minor.patch. The major number tracks the saved-file format, so a major bump means older builds can no longer read your data file. The live site always serves the newest.
+
+**v2.6.0** — New interest basis: **daily on actual days**, where interest is balance × rate × days ÷ 365, so a 31-day month costs more than a 28-day one. RBC and several other Canadian lenders bill this way, and none of the existing options reproduced it — the previous "Daily" option compounds and assumes an average month. Payment dates can now be moved: the frequency-change section takes an optional new payment date, and leaving the frequency unchanged makes it a payment-date change on its own. Credit lines show their property pills at all times, the duplicate "Secured by" field is gone from Line setup, and a **Move…** button reassigns a line and follows it to its new group instead of leaving you wondering where it went. Quick start now points out that the actual-days basis can't be detected from your payment — it produces the same payment as monthly — and tells you to check whether your statement's interest changes with the length of the month.
 
 **v2.5.0** — Amortization schedule summary rows and expanded detail rows now share one column set, so interest, principal, prepaid, payment and balance line up vertically. Credit lines group by what secures them, with pills across the top the same way properties work, shown only when there's more than one group. Adding a line uses a proper dialog instead of a browser prompt, and you can now track an **unsecured** line of credit — deductibility follows the use of the money, not the security, so an unsecured line used to invest is tracked the same way; growing-room limit types need a mortgage, so unsecured lines use a fixed limit. Line names in the property summary link straight to that line.
 

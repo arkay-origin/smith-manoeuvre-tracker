@@ -248,7 +248,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">v2.5.0</div>
+  <div id="version" class="noprint">v2.6.0</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -394,7 +394,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
           <option value="match">Matches payment cycle</option>
           <option value="1">Annual</option>
           <option value="4">Quarterly</option>
-          <option value="365">Daily</option>
+          <option value="365">Daily (compounded)</option>
+          <option value="act365">Daily on actual days — bal × rate × days ÷ 365</option>
         </select></div>
       <div class="field"><label>Payment amount</label>
         <select id="mPayMode">
@@ -418,7 +419,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 
     <hr>
     <h3>Payment frequency changes</h3>
-    <p class="faint">Switched from monthly to accelerated bi-weekly (or similar) mid-mortgage? The schedule re-amortizes from that date at the new frequency, so the history before it stays accurate.</p>
+    <p class="faint">Switched from monthly to accelerated bi-weekly (or similar) mid-mortgage? The schedule re-amortizes from that date at the new frequency, so the history before it stays accurate.
+    Set <b>new payment date</b> to move which day payments land on — leave the frequency unchanged and it becomes a payment-date change on its own.</p>
     <div class="grid g3">
       <div class="field"><label>Effective date</label><input type="date" id="fcDate"></div>
       <div class="field"><label>New frequency</label>
@@ -427,7 +429,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
           <option value="26a">Accelerated bi-weekly</option><option value="52">Weekly</option>
           <option value="52a">Accelerated weekly</option>
         </select></div>
-      <div class="field"><label>&nbsp;</label><button id="fcAdd" style="width:100%">Add frequency change</button></div>
+      <div class="field"><label>New payment date <span class="faint">(optional)</span></label><input type="date" id="fcNewDate"></div>
+      <div class="field"><label>&nbsp;</label><button id="fcAdd" style="width:100%">Add change</button></div>
     </div>
     <table id="fcTable"></table>
 
@@ -444,7 +447,8 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
           <option value="match">Matches payment cycle</option>
           <option value="1">Annual</option>
           <option value="4">Quarterly</option>
-          <option value="365">Daily</option>
+          <option value="365">Daily (compounded)</option>
+          <option value="act365">Daily on actual days</option>
         </select></div>
       <div class="field"><label>&nbsp;</label><button id="rcAdd" style="width:100%">Add rate change</button></div>
     </div>
@@ -1171,6 +1175,7 @@ function freqAt(M, dateStr){
 // Resolve a compounding setting to compounds-per-year.
 // 'match' = compounding aligns with the payment cycle.
 function compoundsPerYear(comp, m){
+  if(comp==='act365') return m;   // nominal, no compounding — see isActual365
   if(comp==='match') return m;
   const c = +comp;
   return (c && c>0) ? c : 2;              // default: semi-annual
@@ -1222,8 +1227,14 @@ const COMPOUNDING = {
   'match':'Matches payment cycle',
   '1':   'Annual',
   '4':   'Quarterly',
-  '365': 'Daily',
+  '365': 'Daily (compounded)',
+  'act365': 'Daily on actual days — balance × rate × days ÷ 365',
 };
+/* 'act365' is not a compounding frequency at all: interest is simple and charged
+   on the ACTUAL number of days in each period, so a 31-day month costs more than
+   a 28-day one. RBC and several other Canadian lenders bill this way. It can't be
+   expressed as a fixed periodic rate, so the schedule computes it per interval. */
+const isActual365 = c => c === 'act365';
 function compLabel(c){ return COMPOUNDING[c] || 'Semi-annual'; }
 
 // Build full schedule honoring rate changes, payment/frequency changes,
@@ -1262,9 +1273,18 @@ function buildSchedule(opts){
                        pay = stdPayment(bal, rate, Math.max(remYears,1/m), freq, comp); };
 
   for(let guard=0; guard<maxPayments && bal>0.005; guard++){
-    // advance one payment period from the cursor at the CURRENT frequency
-    const pd = addPeriods(cursor, 1, m);
-    const pdStr = pd.toISOString().slice(0,10);
+    // Advance one payment period from the cursor at the CURRENT frequency. If a
+    // payment-date change takes effect inside this window, THIS payment moves to
+    // the new date rather than the one after it — otherwise the relocation would
+    // land out of chronological order.
+    let pdStr = addPeriods(cursor, 1, m).toISOString().slice(0,10);
+    if(!baseFreqOnly){
+      for(const fc of fcs){
+        if(fc.newDate && fc.date > cursor && fc.date <= pdStr && fc.newDate > cursor){
+          pdStr = fc.newDate; break;
+        }
+      }
+    }
 
     // Collect every event effective on/before this payment date, then apply them
     // in TRUE DATE ORDER. Applying by category instead would both misorder the
@@ -1287,10 +1307,17 @@ function buildSchedule(opts){
         recalc();
         rows.push({date:ev.date, type:'rate', rate, comp, bal,
                    note:'Rate → '+rate+'%'+(ev.ref.compounding?' · '+compLabel(ev.ref.compounding):'')});
-      } else {                                  // freq
-        if(ev.ref.freq !== freq){
-          freq = ev.ref.freq; recalc();
-          rows.push({date:ev.date, type:'freq', freq, bal, note:'Frequency → '+freqLabel(freq)});
+      } else {                                  // freq and/or payment date
+        const changedFreq = ev.ref.freq !== freq;
+        if(changedFreq){ freq = ev.ref.freq; recalc(); }
+        // A new payment date moves the cursor, so the next payment lands there
+        // and every one after follows from it. With no frequency change this is
+        // a payment-date change on its own.
+        if(changedFreq || ev.ref.newDate){
+          const bits = [];
+          if(changedFreq) bits.push('Frequency → '+freqLabel(freq));
+          if(ev.ref.newDate) bits.push('Payments move to '+ev.ref.newDate);
+          rows.push({date:ev.date, type:'freq', freq, bal, note:bits.join(' · ')});
         }
       }
     }
@@ -1298,14 +1325,19 @@ function buildSchedule(opts){
 
     const override = ignoreCustom ? null : paymentOverrideAt(M, pdStr);
     const effPay = override!=null ? override : pay;
-    const interest = bal * i;
+    // actual/365 charges simple interest on the real days elapsed, so a 31-day
+    // month costs more than a 28-day one. Everything else uses a fixed periodic rate.
+    const daysElapsed = Math.round((new Date(pdStr+'T00:00:00') - new Date(cursor+'T00:00:00'))/86400000);
+    const interest = isActual365(comp)
+      ? bal * (rate/100) * Math.max(daysElapsed,0)/365
+      : bal * i;
     let principal = effPay - interest, neg=false;
     if(principal < 0){ neg=true; negAmCount++; unpaidInterest += -principal; }
     if(principal > bal) principal = bal;
     bal -= principal;
     remYears = Math.max(remYears - 1/m, 0);
     payCount++;
-    rows.push({date:pdStr, type:'pay', pay:Math.min(effPay, interest+principal),
+    rows.push({date:pdStr, type:'pay', days: isActual365(comp)?daysElapsed:null, pay:Math.min(effPay, interest+principal),
                interest, principal, bal, neg, custom:override!=null, freq});
     cursor = pdStr;
     if(bal > M.principal*3){ blewUp = true; break; }
@@ -1440,9 +1472,10 @@ function renderMortgage(){
   // frequency change table
   const fcs = [...(M.freqChanges||[])].sort((a,b)=>a.date.localeCompare(b.date));
   $('fcTable').innerHTML = fcs.length ?
-    '<tr><th>Effective date</th><th>Frequency</th><th class="actcell"></th></tr>' +
+    '<tr><th>Effective date</th><th>Frequency</th><th>Payments move to</th><th class="actcell"></th></tr>' +
     fcs.map(c=>{ const idx=M.freqChanges.indexOf(c);
       return `<tr><td>${c.date}</td><td><span class="tag blue">${freqLabel(c.freq)}</span></td>
+      <td class="faint">${c.newDate||'—'}</td>
       <td class="actcell"><button class="small danger" onclick="delFC(${idx})" aria-label="Delete frequency change" title="Delete frequency change">×</button></td></tr>`; }).join('')
     : '<tr><td class="empty">No frequency changes recorded.</td></tr>';
   // rate change table
@@ -1489,7 +1522,7 @@ function renderMortgage(){
   const EMPTY = '<td class="num faint">—</td>';
   const detailRow = r => {
     if(r.type==='pay') return `<tr class="subrow"><td>${r.date}</td>
-      <td><span class="faint">${freqLabel(r.freq)}</span>${r.neg?' <span class="tag red">neg</span>':''}${r.custom?' <span class="tag gold">custom</span>':''}</td>
+      <td><span class="faint">${freqLabel(r.freq)}${r.days?` · ${r.days}d`:''}</span>${r.neg?' <span class="tag red">neg</span>':''}${r.custom?' <span class="tag gold">custom</span>':''}</td>
       <td class="num red">${fmt$2(r.interest)}</td>
       <td class="num ${r.principal<0?'red':''}">${fmt$2(r.principal)}</td>
       ${EMPTY}
@@ -1540,10 +1573,11 @@ function setConfigOpen(open){
   setTimeout(()=>{ cfgProgrammatic = false; }, 0);
 }
 $('fcAdd').onclick = ()=>{
-  const d=$('fcDate').value, f=$('fcFreq').value;
+  const d=$('fcDate').value, f=$('fcFreq').value, nd=$('fcNewDate').value||null;
   if(!d){ alert('Effective date required'); return; }
+  if(nd && nd < d){ alert('The new payment date can\'t be before the change takes effect.'); return; }
   S.mortgage.freqChanges = (S.mortgage.freqChanges||[]).filter(c=>c.date!==d);
-  S.mortgage.freqChanges.push({date:d, freq:f});
+  S.mortgage.freqChanges.push({date:d, freq:f, newDate:nd});
   S.mortgage.freqChanges.sort((a,b)=>a.date.localeCompare(b.date));
   touch();
 };
@@ -1634,17 +1668,47 @@ function lnSync(){
 }
 $('lnProp').onchange = lnSync;
 $('hAddLine').onclick = ()=>{
+  movingLine = null;
+  $('lnSave').textContent = 'Add line';
   $('lnName').value = '';
   $('lnProp').innerHTML = S.properties.map(p=>
     `<option value="${p.id}">${esc(p.name)}${p.isPrimary?' (principal residence)':''}</option>`).join('')
     + '<option value="">Unsecured — not against a property</option>';
   lnSync(); lineDlg.showModal();
 };
+let movingLine = null;   // index being moved, null when adding
+window.moveHeloc = hi => {
+  const h = S.helocs[hi];
+  movingLine = hi;
+  lineDlg.querySelector('h2').textContent = 'Move credit line';
+  $('lnName').value = h.name;
+  $('lnProp').innerHTML = S.properties.map(p=>
+    `<option value="${p.id}"${h.propertyId===p.id?' selected':''}>${esc(p.name)}${p.isPrimary?' (principal residence)':''}</option>`).join('')
+    + `<option value=""${!h.propertyId?' selected':''}>Unsecured — not against a property</option>`;
+  lnSync(); lineDlg.showModal();
+};
+lineDlg.addEventListener('close', ()=>{
+  movingLine = null;
+  lineDlg.querySelector('h2').textContent = 'Add credit line';
+  $('lnSave').textContent = 'Add line';
+});
 $('lnCancel').onclick = ()=> lineDlg.close();
 $('lnSave').onclick = ()=>{
   const name = $('lnName').value.trim();
   if(!name){ alert('Give the line a name.'); return; }
-  addCreditLine(name, $('lnProp').value || null);
+  const pid = $('lnProp').value || null;
+  if(movingLine!=null){
+    const h = S.helocs[movingLine];
+    h.name = name; h.propertyId = pid;
+    // growing-room limits need a mortgage to grow against
+    if(!pid && h.limitMode!=='fixed') h.limitMode = 'fixed';
+    delete h.needsAssignment;
+    activeLineGroup = pid || '';          // follow the line to its new group
+    lineDlg.close(); touch();
+    return;
+  }
+  addCreditLine(name, pid);
+  activeLineGroup = pid || '';            // land on the group we just added to
   lineDlg.close();
 };
 function addCreditLine(name, propertyId){
@@ -1772,7 +1836,7 @@ function renderHelocs(){
   const groups = groupsForLines();
   if(activeLineGroup===null || !groups.some(g=>g.id===activeLineGroup))
     activeLineGroup = groups.length ? groups[0].id : null;
-  $('lineSwitch').style.display = groups.length>1 ? '' : 'none';
+  $('lineSwitch').style.display = groups.length ? '' : 'none';
   $('lineSwitch').innerHTML = groups.map(g=>
     `<button class="${g.id===activeLineGroup?'on':''}" onclick="selectLineGroup('${g.id}')">${esc(g.name)}</button>`).join('');
   const visible = S.helocs.filter(h=> (h.propertyId||'') === (activeLineGroup||''));
@@ -1793,11 +1857,6 @@ function renderHelocs(){
            <select onchange="setRateMode(${hi},this.value)"><option value="fixed" selected>Fixed / manual</option><option value="prime">Prime + delta</option></select></div>
          <div class="field"><label>Effective rate today</label><input disabled value="${rNow!=null?rNow.toFixed(2)+'%':'add a rate below'}"></div>`;
     // credit-limit block: fixed limit, or re-advanceable derived from LTV
-    const securedSel = `<div class="field"><label>Secured by</label>
-        <select onchange="setHeloc(${hi},'propertyId',this.value)">
-          ${S.properties.map(pp=>`<option value="${pp.id}"${h.propertyId===pp.id?' selected':''}>${esc(pp.name)}${pp.isPrimary?' (principal residence)':''}</option>`).join('')}
-          <option value=""${!h.propertyId?' selected':''}>Unsecured — not against a property</option>
-        </select></div>`;
     const limitSel = sel => `<div class="field"><label>Limit type</label>
         <select onchange="setHeloc(${hi},'limitMode',this.value)">
           <option value="fixed"${sel==='fixed'?' selected':''}>Fixed limit</option>
@@ -1822,6 +1881,7 @@ function renderHelocs(){
       <div class="spread"><h2>${esc(h.name)}</h2>
         <div class="row">
           <button class="small" onclick="renameHeloc(${hi})">Rename</button>
+          <button class="small" onclick="moveHeloc(${hi})">Move…</button>
           <button class="small danger" onclick="delHeloc(${hi})">Delete line</button>
         </div></div>
       ${mixed?'<div class="disclaimer" style="margin-bottom:.7rem"><strong>Mixed use detected.</strong> This line has both deductible and non-deductible draws — interest must be prorated and the CRA hates fuzzy math. Strongly consider separate lines/sub-accounts.</div>':''}
@@ -1838,7 +1898,7 @@ function renderHelocs(){
       <details class="linecfg" ${cfgReady?'':'open'}>
         <summary>Line setup — rate basis, credit limit${h.rateMode==='fixed'?', rate history':''}</summary>
         <div class="grid g3" style="margin-bottom:.4rem">
-          ${rateBlock}${securedSel}${limitBlock}
+          ${rateBlock}${limitBlock}
         </div>
         ${(()=>{const op=S.properties.find(pp=>pp.id===h.propertyId); return op && !op.isPrimary ? `<div class="disclaimer" style="margin-bottom:.7rem">
           <strong>Secured by ${esc(op.name)}.</strong> Deductibility follows what the money was <em>used for</em>, not what secures the line — so investment draws here are still Line 22100 interest and are tracked normally. Growing-room limits use that property's mortgage.
@@ -3516,7 +3576,7 @@ function renderProperties(){
           <div class="field"><label>Interest compounding <span class="red">*</span></label>
             <select onchange="setPropM(${pi},'compounding',this.value||null)">
               <option value=""${!pr.mortgage.compounding?' selected':''}>Select — check your documents</option>
-              ${[['2','Semi-annual'],['12','Monthly'],['match','Matches payment cycle'],['1','Annual'],['4','Quarterly'],['365','Daily']]
+              ${[['2','Semi-annual'],['12','Monthly'],['match','Matches payment cycle'],['1','Annual'],['4','Quarterly'],['365','Daily (compounded)'],['act365','Daily on actual days']]
                 .map(([v,l])=>`<option value="${v}"${pr.mortgage.compounding===v?' selected':''}>${l}</option>`).join('')}
             </select></div>
         </div>
@@ -3715,7 +3775,8 @@ $('qsRun').onclick = ()=>{
     </div>
     <p class="faint" style="margin:.6rem 0 .4rem">${inf.confident
       ? `Your payment matches <b>${compLabel(inf.comp)}</b> compounding, so that's what the tracker will use — no need to dig through your mortgage documents.`
-      : `Your payment doesn't match a standard compounding basis (closest is ${compLabel(inf.comp)}, off by ${fmt$2(inf.diff)} per payment). That usually means the payment includes property tax or insurance, or the balance and amortization aren't from the same date. Worth checking before you rely on the schedule.`}</p>
+      : `Your payment doesn't match a standard compounding basis (closest is ${compLabel(inf.comp)}, off by ${fmt$2(inf.diff)} per payment). That usually means the payment includes property tax or insurance, or the balance and amortization aren't from the same date. Worth checking before you rely on the schedule.`}
+      <br><b>One thing the payment can't tell us:</b> some lenders — RBC among them — charge interest on the actual days in each period rather than a fixed monthly rate, and that produces exactly the same payment. The tell is your statement: if the interest charged <em>changes with the length of the month</em> (more in a 31-day month than in February), set compounding to <b>Daily on actual days</b> on the Properties tab. If it's the same every month, leave it as ${compLabel(inf.comp)}.</p>
     <div class="row" style="margin-top:.6rem">
       <button class="primary" id="qsAdopt">Set up my tracker with these numbers</button>
       <button id="qsDismiss">Just exploring for now</button>
