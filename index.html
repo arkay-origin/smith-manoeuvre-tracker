@@ -1527,17 +1527,17 @@ function renderMortgage(){
       <td class="num ${r.principal<0?'red':''}">${fmt$2(r.principal)}</td>
       ${EMPTY}
       <td class="num">${fmt$2(r.pay)}</td>
-      <td class="num">${fmt$(r.bal)}</td></tr>`;
+      <td class="num">${fmt$2(r.bal)}</td></tr>`;
     if(r.type==='prepay') return `<tr class="subrow"><td>${r.date}</td>
       <td><span class="tag gold">Prepayment</span>${r.note?` <span class="faint">${esc(r.note)}</span>`:''}</td>
       ${EMPTY}${EMPTY}
       <td class="num gold">${fmt$2(r.amount)}</td>
       ${EMPTY}
-      <td class="num">${fmt$(r.bal)}</td></tr>`;
+      <td class="num">${fmt$2(r.bal)}</td></tr>`;
     if(r.type==='rate'||r.type==='freq') return `<tr class="subrow"><td>${r.date}</td>
       <td><span class="tag blue">${esc(r.note)}</span></td>
       ${EMPTY}${EMPTY}${EMPTY}${EMPTY}
-      <td class="num">${fmt$(r.bal)}</td></tr>`;
+      <td class="num">${fmt$2(r.bal)}</td></tr>`;
     return '';
   };
   t.innerHTML = `<tr>${sortHead('sched','Year / date')}<th>Event</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Prepaid</th><th class="num">Payment</th><th class="num">Balance</th></tr>`
