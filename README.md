@@ -77,7 +77,8 @@ Not sure the strategy suits you? The Simulator answers that before you commit to
 - Draws tagged by purpose — investment principal and capitalized interest kept separate
 - Fixed rate history, or prime + delta with a shared prime timeline
 - Fixed credit limit, or re-advanceable room that grows as mortgage principal is repaid
-- Mixed-use contamination warnings
+- Mixed-use contamination warnings, including when capitalized interest pushes a line over its limit
+- Notes for context that shouldn't move a balance — a float, or an opening seed in a dedicated chequing account
 
 **Investments**
 - CRA average-cost ACB engine
@@ -136,6 +137,8 @@ Built for the r/smithmanoeuvre community and shaped by their suggestions. Issues
 ## Changelog
 
 Version numbers are major.minor.patch. The major number tracks the saved-file format, so a major bump means older builds can no longer read your data file. The live site always serves the newest.
+
+**v2.7.0** — Credit lines take a **Note** transaction that records context without moving any balance — a float held to absorb capitalized interest, or the opening seed in a dedicated SM chequing account. Both are personal money sitting alongside borrowed money, and a reviewer will want to know why; the note says so on the file. It stays inert only while that money isn't invested, and the form says as much. Separately, a line that crosses its credit limit through **capitalized interest** is now flagged: nothing you did caused it, but curing the overage with personal money mixes it into the line permanently, since repayments must be applied proportionally.
 
 **v2.6.0** — New interest basis: **daily on actual days**, where interest is balance × rate × days ÷ 365, so a 31-day month costs more than a 28-day one. RBC and several other Canadian lenders bill this way, and none of the existing options reproduced it — the previous "Daily" option compounds and assumes an average month. Payment dates can now be moved: the frequency-change section takes an optional new payment date, and leaving the frequency unchanged makes it a payment-date change on its own. Credit lines show their property pills at all times, the duplicate "Secured by" field is gone from Line setup, and a **Move…** button reassigns a line and follows it to its new group instead of leaving you wondering where it went. Quick start now points out that the actual-days basis can't be detected from your payment — it produces the same payment as monthly — and tells you to check whether your statement's interest changes with the length of the month.
 

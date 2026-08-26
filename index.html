@@ -248,7 +248,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">v2.6.0</div>
+  <div id="version" class="noprint">v2.7.0</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -1235,6 +1235,7 @@ const COMPOUNDING = {
    a 28-day one. RBC and several other Canadian lenders bill this way. It can't be
    expressed as a fixed periodic rate, so the schedule computes it per interval. */
 const isActual365 = c => c === 'act365';
+const NOTEKIND = {float:'Float', seed:'Seed', other:'Note'};
 function compLabel(c){ return COMPOUNDING[c] || 'Semi-annual'; }
 
 // Build full schedule honoring rate changes, payment/frequency changes,
@@ -1715,7 +1716,7 @@ function addCreditLine(name, propertyId){
   S.helocs.push({id:uid(), name, limit:null, draws:[], payments:[],
     rateMode:'fixed', delta:null, rateHistory:[],
     limitMode:'fixed', homeValue:null, maxLTV:null, initialRoom:null, growShare:100,
-    propertyId: propertyId, interestNotes:[]});
+    propertyId: propertyId, interestNotes:[], notes:[]});
   touch();
 }
 // Backward-compat + normalization: fold any legacy single `rate` into rateHistory.
@@ -1731,6 +1732,8 @@ function migrateHeloc(h){
   (h.draws||[]).forEach(d=>{ if(!d.id) d.id = uid(); });
   (h.payments||[]).forEach(x=>{ if(!x.id) x.id = uid(); });
   if(!h.interestNotes) h.interestNotes = [];   // statement interest paid in cash, balance unaffected
+  if(!h.notes) h.notes = [];                   // context records — never touch any balance
+  h.notes.forEach(x=>{ if(!x.id) x.id = uid(); });
   h.interestNotes.forEach(x=>{ if(!x.id) x.id = uid(); });
   if(!h.limitMode) h.limitMode = 'fixed';
   if(h.homeValue===undefined) h.homeValue = null;
@@ -1904,7 +1907,20 @@ function renderHelocs(){
           <strong>Secured by ${esc(op.name)}.</strong> Deductibility follows what the money was <em>used for</em>, not what secures the line — so investment draws here are still Line 22100 interest and are tracked normally. Growing-room limits use that property's mortgage.
           <br>One limit: if this line is ever drawn for rental expenses or improvements, that portion's interest belongs on <b>T776</b> against rental income, not Line 22100. This tool won't split a line across two tax forms — keep it investment-only, or track the rest separately.
         </div>`:''; })()}
-        ${h.needsAssignment?'<div class="disclaimer" style="margin-bottom:.7rem"><strong>Needs a property.</strong> This line was marked as secured by another property when your file was upgraded, but there was none to attach it to. Pick the right one above.</div>':''}
+        ${(()=>{
+        // Capitalized interest is added by the engine, not entered by you, so a
+        // line can cross its limit with no action taken. That's the moment a
+        // float gets used — and without one, the moment personal money gets
+        // pulled in to cure the overage, which contaminates the line for good.
+        if(lim.limit==null || roomAvail==null || roomAvail>=0) return '';
+        const cap = t.capint||0;
+        const fromCap = cap > 0 && (t.bal - cap) <= lim.limit;
+        return `<div class="disclaimer" style="margin-bottom:.7rem">
+          <strong>Over the credit limit by ${fmt$(Math.abs(roomAvail))}.</strong>
+          ${fromCap ? `Capitalized interest of ${fmt$(cap)} pushed this line past its limit — nothing you did, it accrued.` : ''}
+          Curing an overage with personal money mixes it permanently into the line: CRA requires repayments to be applied proportionally, so you can't take it back out. A float held outside the line to absorb this is the usual defence — record it here as a <b>Note</b> so the reason is on the file.
+        </div>`;})()}
+      ${h.needsAssignment?'<div class="disclaimer" style="margin-bottom:.7rem"><strong>Needs a property.</strong> This line was marked as secured by another property when your file was upgraded, but there was none to attach it to. Pick the right one above.</div>':''}
         ${lim.dynamic && lim.detail ? `<p class="faint" style="margin:-.1rem 0 .5rem">Room grows as you pay down the mortgage: limit = <b>${lim.detail}</b> = ${fmt$(lim.limit)}. ${roomAvail!=null&&roomAvail<0?'<span class="red">You are over the derived limit.</span>':''}</p>`:''}
         ${h.limitMode==='readvanceable' && (!h.homeValue||!h.maxLTV) ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter home value and max LTV.</span> Max LTV is usually 65% for the revolving portion, or up to 80% including your mortgage — check your product.</p>':''}
         ${h.limitMode==='grow' && h.initialRoom==null ? '<p class="faint" style="margin:-.1rem 0 .5rem"><span class="gold">Enter this line\'s opening room.</span> Mortgage principal you repay is added to it. Use this when one global limit is split across sub-accounts — an LTV figure would capture the whole limit, not just this line.</p>':''}
@@ -1916,16 +1932,27 @@ function renderHelocs(){
         <div class="field"><label>Date</label><input type="date" id="hd-date-${hi}" value="${today()}"></div>
         <div class="field"><label>Amount $</label><input type="number" step="0.01" id="hd-amt-${hi}"></div>
         <div class="field"><label>Type</label>
-          <select id="hd-pur-${hi}">${Object.entries(PURPOSES).map(([k,v])=>`<option value="${k}">Draw — ${v.label}</option>`).join('')}<option value="principal">Principal payment</option><option value="interest">Interest charged — paid in cash, not capitalized</option></select></div>
+          <select id="hd-pur-${hi}" onchange="hdSync(${hi})">${Object.entries(PURPOSES).map(([k,v])=>`<option value="${k}">Draw — ${v.label}</option>`).join('')}<option value="principal">Principal payment</option><option value="interest">Interest charged — paid in cash, not capitalized</option><option value="note">Note — no effect on balances</option></select></div>
       </div>
+      <div class="field" id="hd-notekind-wrap-${hi}" style="display:none"><label>What is this?</label>
+        <select id="hd-notekind-${hi}">
+          <option value="float">Float held to absorb capitalized interest</option>
+          <option value="seed">Opening seed in the SM chequing account</option>
+          <option value="other">Other — see note</option>
+        </select></div>
       <div class="field"><label>Note</label><input type="text" id="hd-note-${hi}" placeholder="e.g. bought 120 VDY @ 46.10, order #…"></div>
+      <div id="hd-notehint-${hi}" class="disclaimer" style="display:none;margin-bottom:.6rem">
+        <strong>Recorded for context only.</strong> This moves no balance and changes no deductible interest — it exists so a reviewer can see why personal money is sitting alongside borrowed money.
+        <br>That holds <em>as long as the money isn't invested</em>. If any of it ends up buying securities it becomes personal capital in that holding: its share of the interest isn't deductible, and it dilutes the borrowed portion. Record that on the Investments tab instead, where the tool can account for it.
+      </div>
       <div class="row"><button class="primary" onclick="addDraw(${hi})">Add transaction</button></div>
       <p class="faint" style="margin-top:.4rem"><span class="green">An <b>Investment</b> draw opens the purchase dialog</span>, linked back to this draw. Cancel there to log the buy later.</p>
       <div class="scrollx" style="margin-top:.8rem"><table>${
         h.draws.length||h.payments.length ?
         `<tr>${sortHead('heloc','Date')}<th>Type</th><th class="num">Amount</th><th>Note</th><th class="actcell"></th></tr>` +
         [...h.draws.map((d,di)=>({d,di,kind:'draw'})), ...h.payments.map((p,pi)=>({d:p,di:pi,kind:'pay'})),
-         ...(h.interestNotes||[]).map((n,ni)=>({d:n,di:ni,kind:'int'}))]
+         ...(h.interestNotes||[]).map((n,ni)=>({d:n,di:ni,kind:'int'})),
+         ...(h.notes||[]).map((n,ni)=>({d:n,di:ni,kind:'note'}))]
           .sort((a,b)=> (sortDir.heloc==='asc'?1:-1) * a.d.date.localeCompare(b.d.date))
           .map(r=> r.kind==='draw'
             ? `<tr><td>${r.d.date}</td><td><span class="tag ${PURPOSES[r.d.purpose]?.cls||'red'}">${PURPOSES[r.d.purpose]?.label||r.d.purpose}</span></td>
@@ -1934,6 +1961,9 @@ function renderHelocs(){
             : r.kind==='pay' ? `<tr><td>${r.d.date}</td><td><span class="tag green">Principal payment</span></td>
                <td class="num">−${fmt$2(r.d.amount).replace('−','')}</td><td class="faint">${esc(r.d.note)}</td>
                <td class="actcell"><button class="small" onclick="editHPay(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHPayRow(${hi},${r.di})" aria-label="Delete principal payment" title="Delete principal payment">×</button></td></tr>`
+            : r.kind==='note' ? `<tr><td>${r.d.date}</td><td><span class="tag">${esc(NOTEKIND[r.d.kind]||'Note')}</span> <span class="faint">no effect on balances</span></td>
+               <td class="num faint">${fmt$2(r.d.amount)}</td><td class="faint">${esc(r.d.note)}</td>
+               <td class="actcell"><button class="small" onclick="editHNote(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHNote(${hi},${r.di})" aria-label="Delete note" title="Delete note">×</button></td></tr>`
             : `<tr><td>${r.d.date}</td><td><span class="tag blue">Interest charged</span></td>
                <td class="num faint">${fmt$2(r.d.amount)}</td><td class="faint">${esc(r.d.note)}</td>
                <td class="actcell"><button class="small" onclick="editHInt(${hi},${r.di})">Edit</button><button class="small danger" onclick="delHInt(${hi},${r.di})" aria-label="Delete interest record" title="Delete interest record">×</button></td></tr>`).join('')
@@ -1951,6 +1981,13 @@ window.setHeloc = (hi,k,v)=>{
 window.setRateMode = (hi,mode)=>{ S.helocs[hi].rateMode = mode; touch(); };
 window.renameHeloc = hi=>{ const n=prompt('New name', S.helocs[hi].name); if(n){ S.helocs[hi].name=n; touch(); } };
 window.delHeloc = hi=>{ if(confirm('Delete this line and all its history?')){ S.helocs.splice(hi,1); touch(); } };
+// Show the note-specific fields only when a note is being recorded.
+window.hdSync = hi => {
+  const isNote = $(`hd-pur-${hi}`).value === 'note';
+  const w = $(`hd-notekind-wrap-${hi}`), hint = $(`hd-notehint-${hi}`);
+  if(w) w.style.display = isNote ? '' : 'none';
+  if(hint) hint.style.display = isNote ? '' : 'none';
+};
 window.addDraw = hi=>{
   const date=$(`hd-date-${hi}`).value, amt=+$(`hd-amt-${hi}`).value;
   if(!date||!amt){ alert('Date and amount required'); return; }
@@ -1958,7 +1995,7 @@ window.addDraw = hi=>{
   // Warn — but don't hard-block — when a draw would exceed the known room. A block
   // would trap people backfilling history, or whose lender re-advances on a
   // different schedule than this tool assumes.
-  if(purpose!=='principal' && purpose!=='interest'){
+  if(purpose!=='principal' && purpose!=='interest' && purpose!=='note'){
     const h = S.helocs[hi], lim = helocLimitNow(h);
     if(lim.limit != null){
       const room = lim.limit - helocTotals(h).bal;
@@ -1972,6 +2009,13 @@ window.addDraw = hi=>{
   }
   if(purpose==='principal'){
     S.helocs[hi].payments.push({id:uid(), date, amount:amt, note});
+    touch(); return;
+  }
+  if(purpose==='note'){
+    // Context only. Records something a reviewer would want explained — a float
+    // parked in the SM chequing account, say — without moving any balance.
+    S.helocs[hi].notes.push({id:uid(), date, amount:amt,
+      kind:$(`hd-notekind-${hi}`) ? $(`hd-notekind-${hi}`).value : 'other', note});
     touch(); return;
   }
   if(purpose==='interest'){
@@ -2296,6 +2340,9 @@ $('edSave').onclick = ()=>{
   } else if(t.kind==='draw'){
     const h = S.helocs[t.hi], d = h && h.draws[t.i];
     if(d){ d.date=date; d.amount=amt; d.purpose=sel||d.purpose; d.note=note; }
+  } else if(t.kind==='helocNote'){
+    const r = S.helocs[t.hi] && S.helocs[t.hi].notes[t.i];
+    if(r){ r.date=date; r.amount=amt; r.note=note; if(sel) r.kind=sel; }
   } else if(t.kind==='helocInt'){
     const r = S.helocs[t.hi] && S.helocs[t.hi].interestNotes[t.i];
     if(r){ r.date=date; r.amount=amt; r.note=note; }
@@ -2323,6 +2370,15 @@ window.editDraw = (hi,i) => {
     hint: linked ? `${linked} linked investment transaction${linked===1?'':'s'} will stay attached.` : '',
     date:d.date, amount:d.amount, note:d.note, selLabel:'Purpose', selected:d.purpose,
     options:Object.entries(PURPOSES).map(([k,v])=>({value:k,label:v.label})) });
+};
+window.delHNote = (hi,i)=>{ S.helocs[hi].notes.splice(i,1); touch(); };
+window.editHNote = (hi,i)=>{
+  const r = S.helocs[hi] && S.helocs[hi].notes[i]; if(!r) return;
+  openEdit({ target:{kind:'helocNote', hi, i}, title:'Edit note',
+    hint:'Context only — no balance or deductible interest changes.',
+    date:r.date, amount:r.amount, note:r.note,
+    selLabel:'What is this?', selected:r.kind,
+    options:Object.entries(NOTEKIND).map(([k,v])=>({value:k,label:v})) });
 };
 window.delHInt = (hi,i)=>{ S.helocs[hi].interestNotes.splice(i,1); touch(); };
 window.editHInt = (hi,i)=>{
