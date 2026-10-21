@@ -248,7 +248,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">v2.7.0</div>
+  <div id="version" class="noprint">v2.7.1</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -475,6 +475,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
   <div class="card">
     <div class="spread"><h2>Prepayments</h2></div>
     <p class="faint">The engine of the strategy: prepay → re-borrow → invest. Lump sums go here.</p>
+    <p class="faint">Use the date the money actually left your account. Your lender charges interest on the balance outstanding each day, so a prepayment landing mid-cycle only saves interest from that day forward — the schedule splits the cycle at this date to match the statement.</p>
     <div class="grid g3">
       <div class="field"><label>Date</label><input type="date" id="ppDate"></div>
       <div class="field"><label>Amount $</label><input type="number" id="ppAmt" step="0.01"></div>
@@ -1297,7 +1298,34 @@ function buildSchedule(opts){
     while(fcIdx<fcs.length && fcs[fcIdx].date <= pdStr){ due.push({kind:'freq',   date:fcs[fcIdx].date, ref:fcs[fcIdx]}); fcIdx++; }
     due.sort((a,b)=> a.date.localeCompare(b.date) || ORDER_TIE[a.kind]-ORDER_TIE[b.kind]);
 
+    // Interest accrues on the balance ACTUALLY outstanding each day, so the
+    // accrual window is split at every mid-period event and each segment is
+    // charged on the balance and rate in force during it. Charging the whole
+    // period on the post-prepayment balance understates interest by
+    // (lump sum × rate × days early) — the gap that makes this schedule and a
+    // real lender's ledger drift apart after a lump sum. Every Canadian lender
+    // accrues daily on the outstanding balance, so this holds for all bases.
+    const totalDays = Math.max(Math.round((new Date(pdStr+'T00:00:00') - new Date(cursor+'T00:00:00'))/86400000), 0);
+    const mPeriod = m;                  // window length is set by the frequency at period start
+    let interest = 0, segStart = cursor;
+    const accrueTo = (to)=>{
+      const from = segStart;
+      if(to > pdStr) to = pdStr;
+      if(to < from) to = from;
+      segStart = to;
+      if(totalDays <= 0) return;
+      const d = Math.round((new Date(to+'T00:00:00') - new Date(from+'T00:00:00'))/86400000);
+      if(d <= 0) return;
+      // act365 already counts days. Fixed-periodic bases have no notion of a
+      // part-period, so the periodic rate is pro-rated by days in the segment;
+      // with no mid-period event the segments collapse back to exactly bal × i.
+      interest += isActual365(comp)
+        ? bal * (rate/100) * d/365
+        : bal * periodicRate(rate, mPeriod, comp) * d/totalDays;
+    };
+
     for(const ev of due){
+      accrueTo(ev.date < cursor ? cursor : ev.date);
       if(ev.kind==='prepay'){
         const amt = Math.min(ev.ref.amount, bal);
         bal -= amt;
@@ -1323,15 +1351,11 @@ function buildSchedule(opts){
       }
     }
     if(bal<=0.005) break;
+    accrueTo(pdStr);                    // close out the final segment of the window
 
     const override = ignoreCustom ? null : paymentOverrideAt(M, pdStr);
     const effPay = override!=null ? override : pay;
-    // actual/365 charges simple interest on the real days elapsed, so a 31-day
-    // month costs more than a 28-day one. Everything else uses a fixed periodic rate.
-    const daysElapsed = Math.round((new Date(pdStr+'T00:00:00') - new Date(cursor+'T00:00:00'))/86400000);
-    const interest = isActual365(comp)
-      ? bal * (rate/100) * Math.max(daysElapsed,0)/365
-      : bal * i;
+    const daysElapsed = totalDays;
     let principal = effPay - interest, neg=false;
     if(principal < 0){ neg=true; negAmCount++; unpaidInterest += -principal; }
     if(principal > bal) principal = bal;
