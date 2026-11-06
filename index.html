@@ -248,7 +248,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
     <button id="btnTheme">Light mode</button>
   </div>
   <div id="savestate">No file linked · data lives in this tab only</div>
-  <div id="version" class="noprint">v2.7.1</div>
+  <div id="version" class="noprint">v2.8.0</div>
   <div id="support" class="noprint">
     <a href="https://buymeacoffee.com/a50443536g" target="_blank" rel="noopener noreferrer">
       <span aria-hidden="true">☕</span> Buy me a coffee
@@ -375,6 +375,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
       <div class="field"><label>Annual rate %</label><input type="number" id="mRate" step="0.001"></div>
       <div class="field"><label>Amortization (years)</label><input type="number" id="mAmort" step="1"></div>
       <div class="field"><label>Start date</label><input type="date" id="mStart"></div>
+      <div class="field"><label>First payment date <span class="faint">(optional)</span></label><input type="date" id="mFirstPay"></div>
       <div class="field"><label>Starting payment frequency</label>
         <select id="mFreq">
           <option value="12">Monthly</option><option value="26">Bi-weekly</option>
@@ -382,6 +383,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
           <option value="52a">Accelerated weekly</option>
         </select></div>
     </div>
+    <p class="faint">Leave <b>first payment date</b> blank unless your first payment came less than a full cycle after the start date. Most Canadian lenders set an <b>interest adjustment date</b>: funds advance (say July 15), you pay the July 15 → August 1 interest as a lump "interest adjustment amount" at closing, amortization formally begins August 1 and your first regular payment is September 1. If that's you, enter <b>August 1 — the interest adjustment date — as the start date</b> and leave this blank; the stub was already settled at closing and doesn't belong in the schedule. Fill this in only for the other pattern, where the short first stretch is carried inside your first payment instead. Entering your funding date rather than your interest adjustment date will throw the whole schedule off by a stub period.</p>
 
     <hr>
     <h3>Payment</h3>
@@ -827,7 +829,7 @@ dialog::backdrop{background:rgba(5,8,12,.75)}
 const SCHEMA_VERSION = 2;
 // A mortgage — identical shape for every property, so one engine serves all.
 const blankMortgage = () => ({
-  principal:null, rate:null, amortYears:null, start:null, freq:'12', compounding:null,
+  principal:null, rate:null, amortYears:null, start:null, firstPayment:null, freq:'12', compounding:null,
   paymentMode:'auto', customPayment:null, paymentChanges:[], freqChanges:[],
   rateChanges:[], prepayments:[] });
 // A property owns its mortgage and its credit lines. The principal residence is
@@ -1280,6 +1282,13 @@ function buildSchedule(opts){
     // the new date rather than the one after it — otherwise the relocation would
     // land out of chronological order.
     let pdStr = addPeriods(cursor, 1, m).toISOString().slice(0,10);
+    // A first payment falling LESS than a full cycle after the start date (the
+    // lender advanced funds mid-cycle and carried the short stretch into the
+    // first payment) shortens only this first window. Interest is charged per
+    // diem over it, so more of that payment lands on principal.
+    if(payCount===0 && M.firstPayment && M.firstPayment > cursor && M.firstPayment < pdStr){
+      pdStr = M.firstPayment;
+    }
     if(!baseFreqOnly){
       for(const fc of fcs){
         if(fc.newDate && fc.date > cursor && fc.date <= pdStr && fc.newDate > cursor){
@@ -1307,6 +1316,11 @@ function buildSchedule(opts){
     // accrues daily on the outstanding balance, so this holds for all bases.
     const totalDays = Math.max(Math.round((new Date(pdStr+'T00:00:00') - new Date(cursor+'T00:00:00'))/86400000), 0);
     const mPeriod = m;                  // window length is set by the frequency at period start
+    // Fixed-periodic bases are pro-rated against a FULL cycle, not against this
+    // window. Weighting by the window instead would always sum to 1, charging a
+    // whole cycle's interest over a short stub period.
+    const nominalDays = Math.max(Math.round(
+      (addPeriods(cursor, 1, mPeriod) - new Date(cursor+'T00:00:00'))/86400000), 1);
     let interest = 0, segStart = cursor;
     const accrueTo = (to)=>{
       const from = segStart;
@@ -1321,7 +1335,7 @@ function buildSchedule(opts){
       // with no mid-period event the segments collapse back to exactly bal × i.
       interest += isActual365(comp)
         ? bal * (rate/100) * d/365
-        : bal * periodicRate(rate, mPeriod, comp) * d/totalDays;
+        : bal * periodicRate(rate, mPeriod, comp) * d/nominalDays;
     };
 
     for(const ev of due){
@@ -1360,7 +1374,8 @@ function buildSchedule(opts){
     if(principal < 0){ neg=true; negAmCount++; unpaidInterest += -principal; }
     if(principal > bal) principal = bal;
     bal -= principal;
-    remYears = Math.max(remYears - 1/m, 0);
+    // A stub first window consumes only its fraction of a cycle's amortization.
+    remYears = Math.max(remYears - (totalDays/nominalDays)/m, 0);
     payCount++;
     rows.push({date:pdStr, type:'pay', days: isActual365(comp)?daysElapsed:null, pay:Math.min(effPay, interest+principal),
                interest, principal, bal, neg, custom:override!=null, freq});
@@ -1615,6 +1630,7 @@ function commitMortgageField(){
   S.mortgage.rate         = +$('mRate').value || null;
   S.mortgage.amortYears   = +$('mAmort').value || null;
   S.mortgage.start        = $('mStart').value || null;
+  S.mortgage.firstPayment = $('mFirstPay').value || null;
   S.mortgage.freq         = $('mFreq').value;
   S.mortgage.compounding  = $('mComp').value || null;
   S.mortgage.paymentMode  = $('mPayMode').value;
@@ -1622,7 +1638,7 @@ function commitMortgageField(){
   $('mCustomWrap').style.display = S.mortgage.paymentMode==='custom' ? '' : 'none';
   touch();
 }
-['mPrincipal','mRate','mAmort','mStart','mFreq','mComp','mPayMode','mCustomPay']
+['mPrincipal','mRate','mAmort','mStart','mFirstPay','mFreq','mComp','mPayMode','mCustomPay']
   .forEach(id=>{ $(id).addEventListener('change', commitMortgageField); });
 
 // Apply / recalc: everything is already saved, so this confirms setup is complete,
@@ -3451,6 +3467,7 @@ function hydrateForms(){
   $('mCustomPay').value=M.customPayment??'';
   $('mCustomWrap').style.display=(M.paymentMode==='custom')?'':'none';
   $('mAmort').value=M.amortYears??''; $('mStart').value=M.start??''; $('mFreq').value=M.freq||'12';
+  $('mFirstPay').value=M.firstPayment??'';
   $('taxMTR').value=S.taxMTR??''; $('taxYear').value=new Date().getFullYear();
   $('lyYear').value=new Date().getFullYear(); $('rdYear').value=new Date().getFullYear();
   $('rdDate').value=today();
@@ -3477,9 +3494,20 @@ function propSchedule(m){
   let bal = m.principal;
   const byYear = {}; const rows=[];
   const n = Math.round(m.amortYears*mm)*2;
+  let cursor = m.start;
   for(let k=1;k<=n && bal>0.005;k++){
-    const d = addPeriods(m.start,k,mm).toISOString().slice(0,10);
-    const int = bal*i;
+    let d = addPeriods(cursor,1,mm).toISOString().slice(0,10);
+    // Honour a short first period, same rule as the full engine.
+    if(k===1 && m.firstPayment && m.firstPayment>cursor && m.firstPayment<d) d = m.firstPayment;
+    const nomDays = Math.max(Math.round(
+      (addPeriods(cursor,1,mm) - new Date(cursor+'T00:00:00'))/86400000), 1);
+    const days = Math.max(Math.round(
+      (new Date(d+'T00:00:00') - new Date(cursor+'T00:00:00'))/86400000), 0);
+    // act365 is a day-count basis, so it can't use a fixed periodic rate here either.
+    const int = isActual365(m.compounding)
+      ? bal*(m.rate/100)*days/365
+      : bal*i*days/nomDays;
+    cursor = d;
     let prin = pay-int; if(prin>bal) prin=bal;
     if(prin<0) prin=0;
     bal -= prin;
@@ -3649,6 +3677,7 @@ function renderProperties(){
           <div class="field"><label>Annual rate %</label><input type="number" step="0.001" value="${pr.mortgage.rate??''}" onchange="setPropM(${pi},'rate',this.value===''?null:+this.value)"></div>
           <div class="field"><label>Amortization (years)</label><input type="number" step="1" value="${pr.mortgage.amortYears??''}" onchange="setPropM(${pi},'amortYears',this.value===''?null:+this.value)"></div>
           <div class="field"><label>Start date</label><input type="date" value="${pr.mortgage.start||''}" onchange="setPropM(${pi},'start',this.value||null)"></div>
+          <div class="field"><label>First payment date <span class="faint">(optional)</span></label><input type="date" value="${pr.mortgage.firstPayment||''}" onchange="setPropM(${pi},'firstPayment',this.value||null)"></div>
           <div class="field"><label>Payment frequency</label>
             <select onchange="setPropM(${pi},'freq',this.value)">
               ${['12','26','26a','52','52a'].map(f=>`<option value="${f}"${pr.mortgage.freq===f?' selected':''}>${freqLabel(f)}</option>`).join('')}
